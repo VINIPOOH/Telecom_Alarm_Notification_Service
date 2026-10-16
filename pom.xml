@@ -28,6 +28,8 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
+		<!-- Not managed by the Spring Boot BOM. 4.0.7+ is needed for Spring Boot 4 / Jetty 12.1 (wiremock-spring-boot issue #137) -->
+		<wiremock-spring-boot.version>4.4.3</wiremock-spring-boot.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -107,6 +109,13 @@
 		<dependency>
 			<groupId>org.awaitility</groupId>
 			<artifactId>awaitility</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<!-- WireMock as the notification receiver in the tests: @EnableWireMock, one server per Spring context -->
+			<groupId>org.wiremock.integrations</groupId>
+			<artifactId>wiremock-spring-boot</artifactId>
+			<version>${wiremock-spring-boot.version}</version>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>

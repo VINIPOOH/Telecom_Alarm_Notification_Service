@@ -1,0 +1,29 @@
+# Test-only settings, ADDED on top of src/main/resources/application.yaml.
+#
+# Why this file is in config/ and not next to the main one: a src/test/resources/application.yaml would have the same
+# classpath name (classpath:/application.yaml) as the main file, test classes come first on the test classpath, and
+# Spring Boot would load only the test copy - the main settings (Jackson, problem details) would silently disappear.
+# classpath:/config/application.yaml is a separate standard location that Spring Boot reads AFTER classpath:/
+# (values from later locations override earlier ones), so this file only adds or overrides the keys written here.
+spring:
+  http:
+    serviceclient:
+      notifications:
+        # The address of the receiver without the path (SPEC section 6); the client adds /external/notifications
+        # itself (@PostExchange of NotificationClient). wiremock.server.httpsBaseUrl
+        # ("https://localhost:<port>") is put into the environment by wiremock-spring-boot (@EnableWireMock on
+        # ApiTestBase) before the context starts; the placeholder is resolved when the property is read. The SSL
+        # bundle that trusts the receiver's certificate is not set here: the main application.yaml already points the
+        # client at it, and the test WireMock serves the same local-development certificate.
+        base-url: ${wiremock.server.httpsBaseUrl}
+        # connect-timeout and read-timeout are NOT set here: the tests run with the production values of
+        # src/main/resources/application.yaml (decision 16.10.2026); every WireMock delay and wait limit is computed
+        # from read-timeout.
+
+server:
+  tomcat:
+    # C-33 sends 200 requests at the same moment, each on its own connection. Tomcat's accept queue (listen backlog)
+    # is 100 by default. On Linux a full queue drops the extra SYNs and the client simply retries; on Windows the OS
+    # answers them with a reset, and the request fails with ConnectException before reaching the application.
+    # Test-only: the queue is made large enough for the biggest burst of the tests; production keeps the default.
+    accept-count: 1000
