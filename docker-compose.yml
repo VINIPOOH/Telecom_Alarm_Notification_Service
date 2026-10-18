@@ -17,5 +17,34 @@ services:
       timeout: 3s
       retries: 10
 
+  wiremock:
+    # The notification receiver for a manual run (decision 15.10.2026): answers POST /external/notifications with 200,
+    # the stub is wiremock/mappings/notifications.json. Same WireMock version as in the tests (wiremock-spring-boot
+    # 4.4.3 -> WireMock 3.13.2; check with: mvnw dependency:tree -Dincludes=org.wiremock).
+    # The application sends over HTTPS (decision 17.10.2026): https://localhost:8443/external/notifications.
+    # Received requests (admin API over plain HTTP, so a browser opens it without a certificate warning):
+    # GET http://localhost:8089/__admin/requests
+    image: wiremock/wiremock:3.13.2
+    # Arguments of WireMock itself (the image passes them on): HTTPS on 8443 with the local-development certificate
+    # for localhost, the same one the tests use; the application trusts it (SSL bundle notification-receiver).
+    command:
+      - "--https-port=8443"
+      - "--https-keystore=/home/wiremock/tls/notification-receiver-dev.p12"
+      - "--keystore-type=PKCS12"
+      - "--keystore-password=wiremock-dev-only"
+      - "--key-manager-password=wiremock-dev-only"
+    ports:
+      # host 8089 -> container 8080: WireMock's plain HTTP port, here only for the admin API in a browser
+      - "8089:8080"
+      # host 8443 -> container 8443: HTTPS, where the application sends the notifications
+      - "8443:8443"
+    volumes:
+      # The image reads stubs from /home/wiremock/mappings (WireMock docs, "Running in Docker"); read-only: WireMock
+      # never writes into the project
+      - ./wiremock/mappings:/home/wiremock/mappings:ro
+      # The key and certificate of the receiver (local development only); they live with the test resources because
+      # the WireMock of the tests uses the same file
+      - ./src/test/resources/tls:/home/wiremock/tls:ro
+
 volumes:
   pgdata:
