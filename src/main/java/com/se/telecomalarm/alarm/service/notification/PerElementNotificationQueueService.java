@@ -1,9 +1,9 @@
 package com.se.telecomalarm.alarm.service.notification;
 
 import java.time.Duration;
-import java.util.ArrayDeque;
-import java.util.Deque;
+import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -66,6 +66,14 @@ class PerElementNotificationQueueService implements NotificationQueue, SmartLife
                                                     Thread.ofPlatform().name("notification-sender-", 1).factory());
     }
 
+    /**
+     * The body of the notification of an accepted event: its fields as received.
+     */
+    private static AlarmEventNotification toNotification(AlarmEvent event) {
+        return new AlarmEventNotification(event.eventId(), event.elementId(), event.alarmCode(), event.severity(),
+                                          event.status(), event.timestamp(), event.description());
+    }
+
     @Override
     public NotificationOutcome enqueue(AlarmEvent event) {
         AlarmEventNotification notification = toNotification(event);
@@ -76,13 +84,13 @@ class PerElementNotificationQueueService implements NotificationQueue, SmartLife
         }
         ElementQueue elementQueue = elementIdToEventQueue.computeIfAbsent(notification.elementId(),
                                                                           elementId -> new ElementQueue());
-        // Under the same lock as drain's "empty -> hasDrain = false", or a notification could be left with no drain
-        // (see drain). senders.execute() is called under the lock too, as SerialExecutor does: it does not wait for
-        // drain(elementQueue), it only hands it over.
+        // Flag check and add under one lock, the same one drain takes before it quits. Otherwise drain could quit
+        // between them, and the notification would be left with nobody to send it.
         synchronized (elementQueue) {
             if (!elementQueue.hasDrain) {
                 try {
-                    // Executors default AbortPolicy guarantees correctness independent of actions order under lock, since it will be done in other thread
+                    // drain(...) always runs in another thread (Executors' default AbortPolicy) and waits for this
+                    // lock, so the order of the steps inside this block does not matter.
                     senders.execute(() -> drain(elementQueue));
                     elementQueue.hasDrain = true;
                 } catch (RejectedExecutionException sendersStopped) {
@@ -94,7 +102,7 @@ class PerElementNotificationQueueService implements NotificationQueue, SmartLife
                 }
             }
             // In both cases: with a drain that was already there, or with the one just handed over.
-            elementQueue.notifications.addLast(notification);
+            elementQueue.notifications.offer(notification);
         }
         return NotificationOutcome.QUEUED;
     }
@@ -106,55 +114,45 @@ class PerElementNotificationQueueService implements NotificationQueue, SmartLife
     private void drain(ElementQueue elementQueue) {
         // Only shutdownNow() interrupts these threads (see stop): the rest of the queue is then left unsent.
         while (!Thread.currentThread().isInterrupted()) {
-            AlarmEventNotification notification;
-            synchronized (elementQueue) {
-                notification = elementQueue.notifications.pollFirst();
-                if (notification == null) {
-                    // "Empty" and "hasDrain = false" in ONE block: otherwise an enqueue in between would see
-                    // hasDrain == true, hand over no drain, and its notification would stay with nobody to send it.
-                    elementQueue.hasDrain = false;
-                    return;
+            AlarmEventNotification notification = elementQueue.notifications.poll();
+            if (notification != null) {
+                deliverAndFreeSlot(notification); // outside the lock: enqueue never waits for the HTTP call
+            } else {
+                synchronized (elementQueue) {
+                    // Check AGAIN under the lock: an enqueue may have added notification after our poll(). enqueue adds notification
+                    // under this same lock, so either we see its notification here, or it sees hasDrain == false after us
+                    // and hands over a new drain.
+                    if (elementQueue.notifications.isEmpty()) {
+                        elementQueue.hasDrain = false;
+                        return;
+                    }
                 }
-            }
-            try {
-                // Outside the lock: enqueue never waits for the HTTP call.
-                notificationSenderService.deliver(notification);
-            } catch (Exception e) {
-                // Caught, or drain would end with hasDrain still true and the element stuck. No stack trace: with
-                // the receiver down this line comes for every notification.
-                log.warn("The notification of event {} (element {}) failed, notification_sent stays false: {}",
-                         notification.eventId(), notification.elementId(), e.toString());
-            } finally {
-                // After the send AND the notification_sent update: pendingCount() counts both.
-                freeNotificationSlots.release();
+                // Not empty after all: something arrived between poll() and the lock, the loop takes it.
             }
         }
     }
 
     /**
-     * The notifications of one element and whether a {@code drain} for them is handed over (waiting for a thread or
-     * running). Both fields only under {@code synchronized (elementQueue)}. Invariant: {@code hasDrain == false}
-     * implies no notifications.
+     * Sends one notification and gives its slot back. Never throws: a failure is logged, so drain goes on with the
+     * next notification instead of ending with hasDrain still true and the element stuck.
      */
-    private static final class ElementQueue {
-        final Deque<AlarmEventNotification> notifications = new ArrayDeque<>();
-        boolean hasDrain;
-    }
-
-    /**
-     * The body of the notification of an accepted event: its fields as received.
-     */
-    private static AlarmEventNotification toNotification(AlarmEvent event) {
-        return new AlarmEventNotification(event.eventId(), event.elementId(), event.alarmCode(), event.severity(),
-                                          event.status(), event.timestamp(), event.description());
+    private void deliverAndFreeSlot(AlarmEventNotification notification) {
+        try {
+            notificationSenderService.deliver(notification);
+        } catch (Exception e) {
+            // No stack trace: with the receiver down this line comes for every notification.
+            log.warn("The notification of event {} (element {}) failed, notification_sent stays false: {}",
+                     notification.eventId(), notification.elementId(), e.toString());
+        } finally {
+            // After the send AND the notification_sent update: pendingCount() counts both.
+            freeNotificationSlots.release();
+        }
     }
 
     @Override
     public int pendingCount() {
         return maxPendingNotifications - freeNotificationSlots.availablePermits();
     }
-
-    // ---- lifecycle -------------------------------------------------------------------------------------------------
 
     /**
      * Graceful stop with a deadline. {@code shutdown()}: new drains are refused (see enqueue), the waiting and running
@@ -182,6 +180,8 @@ class PerElementNotificationQueueService implements NotificationQueue, SmartLife
                          + "their notification_sent stays false", shutdownTimeout, pendingCount());
     }
 
+    // ---- lifecycle -------------------------------------------------------------------------------------------------
+
     /**
      * Nothing to start: senders is created in the constructor and works from then on. Spring does not even call this,
      * as {@link #isRunning()} is already true.
@@ -207,5 +207,16 @@ class PerElementNotificationQueueService implements NotificationQueue, SmartLife
     @Override
     public boolean isPauseable() {
         return false;
+    }
+
+    /**
+     * The notifications of one element and whether a {@code drain} for them is handed over (waiting for a thread or
+     * running). {@code notifications} is a concurrent queue: drain takes from it without a lock, while every add
+     * (enqueue) and every {@code hasDrain} change happen under {@code synchronized (elementQueue)}. Invariant, at every
+     * moment the lock is free: {@code hasDrain == false} implies no notifications.
+     */
+    private static final class ElementQueue {
+        final Queue<AlarmEventNotification> notifications = new ConcurrentLinkedQueue<>();
+        boolean hasDrain;
     }
 }
