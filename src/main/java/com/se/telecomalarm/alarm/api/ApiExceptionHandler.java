@@ -28,13 +28,7 @@ import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
-/**
- * The one place that turns request errors into RFC 9457 problem details (application/problem+json).
- * <p>
- * It extends {@link ResponseEntityExceptionHandler}, so every built-in Spring MVC exception (for example 415 for a
- * wrong Content-Type) is rendered as a problem detail too; only the cases below are customised.
- * Nothing from the exception (message, class names, parser position) goes into the response body.
- */
+//The one place that turns request errors into RFC 9457 problem details (application/problem+json).
 @RestControllerAdvice
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
@@ -63,11 +57,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return problem;
     }
 
-    /**
-     * The request parameter name of a controller method parameter: the name of its {@code @RequestParam}, else the
-     * Java name.
-     */
-    private static String parameterName(MethodParameter parameter) {
+    private static String requestParameterName(MethodParameter parameter) {
         RequestParam requestParam = parameter.getParameterAnnotation(RequestParam.class);
         if (requestParam != null && !requestParam.name().isEmpty()) {
             return requestParam.name();
@@ -75,10 +65,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return parameter.getParameterName();
     }
 
-    /**
-     * The JSON property Jackson was reading when it failed, or null if the failure is not tied to a property.
-     */
-    private static String fieldOf(JacksonException cause) {
+    private static String failedJsonPropertyOrNull(JacksonException cause) {
         List<JacksonException.Reference> path = cause.getPath();
         for (int i = path.size() - 1; i >= 0; i--) {
             String name = path.get(i).getPropertyName();
@@ -104,9 +91,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return "has an invalid value";
     }
 
-    /**
-     * Bean Validation failed: every invalid field is reported, sorted by field name.
-     */
+    //Bean Validation failed: every invalid field is reported, sorted by field name.
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(
             MethodArgumentNotValidException ex, @NonNull HttpHeaders headers, @NonNull HttpStatusCode status, @NonNull WebRequest request) {
@@ -129,7 +114,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         log.debug("Unreadable request body", ex);
         ProblemDetail problem = null;
         if (ex.getCause() instanceof JacksonException cause) {
-            String field = fieldOf(cause);
+            String field = failedJsonPropertyOrNull(cause);
             if (field != null) {
                 problem = invalidEvent(List.of(new FieldProblemResponse(field, messageFor(cause))));
             }
@@ -141,10 +126,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return handleExceptionInternal(ex, problem, headers, HttpStatus.BAD_REQUEST, request);
     }
 
-    /**
-     * The eventId is taken and the request is not an exact repeat of an accepted event: 409.
-     * The detail says only that; it never contains values of the stored event (and no technical details).
-     */
+    //The detail never contains values of the stored event.
     @ExceptionHandler(EventIdConflictException.class)
     protected ResponseEntity<Object> handleEventIdConflict(EventIdConflictException ex, WebRequest request) {
         log.info("eventId '{}' conflicts with an earlier event", ex.eventId());
@@ -154,12 +136,9 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return handleExceptionInternal(ex, problem, new HttpHeaders(), HttpStatus.CONFLICT, request);
     }
 
-    /**
-     * A CLEARED without an earlier accepted RAISED of its pair: 409. The event is already stored as REJECTED; the
-     * detail does not say so (internal state), it only names the rule the event broke.
-     */
+    //The event is already stored as REJECTED; the detail does not say so, it only names the broken rule.
     @ExceptionHandler(UnknownAlarmException.class)
-    protected ResponseEntity<Object> handleUnknownAlarm(UnknownAlarmException ex, WebRequest request) {
+    protected ResponseEntity<Object> handleClearedWithoutEarlierRaised(UnknownAlarmException ex, WebRequest request) {
         log.info("eventId '{}': CLEARED for an unknown alarm, stored as rejected", ex.eventId());
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
                                                                  "This alarm (elementId, alarmCode) has no accepted RAISED event earlier than this CLEARED event");
@@ -167,17 +146,14 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return handleExceptionInternal(ex, problem, new HttpHeaders(), HttpStatus.CONFLICT, request);
     }
 
-    /**
-     * Bean Validation of a controller method parameter failed (for example {@code limit} of /history out of range):
-     * 400 with one entry per invalid parameter in {@code errors}, by its request parameter name.
-     */
+    //A controller parameter failed Bean Validation
     @Override
     protected ResponseEntity<Object> handleHandlerMethodValidationException(
             @NonNull HandlerMethodValidationException ex, @NonNull HttpHeaders headers, @NonNull HttpStatusCode status, @NonNull WebRequest request) {
         List<FieldProblemResponse> errors = ex.getParameterValidationResults().stream()
                 .flatMap(result -> result.getResolvableErrors().stream()
                         .map(error -> new FieldProblemResponse(
-                                parameterName(result.getMethodParameter()),
+                                requestParameterName(result.getMethodParameter()),
                                 error.getDefaultMessage() != null ? error.getDefaultMessage() : "is invalid")))
                 .distinct()
                 .sorted(BY_FIELD_THEN_MESSAGE)
@@ -186,14 +162,19 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return handleExceptionInternal(ex, invalidQuery(errors), headers, HttpStatus.BAD_REQUEST, request);
     }
 
-    /**
-     * A query parameter that Bean Validation does not check is invalid (an {@code after} of /history that does not
-     * decode): 400 in the same form. The text is fixed: the value the client sent is not repeated.
-     */
     @ExceptionHandler(InvalidQueryParameterException.class)
     protected ResponseEntity<Object> handleInvalidQueryParameter(InvalidQueryParameterException ex, WebRequest request) {
         log.info("Invalid query parameter '{}': {}", ex.field(), ex.getMessage());
         ProblemDetail problem = invalidQuery(List.of(new FieldProblemResponse(ex.field(), ex.getMessage())));
         return handleExceptionInternal(ex, problem, new HttpHeaders(), HttpStatus.BAD_REQUEST, request);
+    }
+
+    @ExceptionHandler(Exception.class)
+    protected ResponseEntity<Object> handleAnyOtherException(Exception ex, WebRequest request) {
+        log.error("Unexpected error while handling a request", ex);
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR,
+                                                                 "The request could not be processed because of an internal error");
+        problem.setTitle("Internal error");
+        return handleExceptionInternal(ex, problem, new HttpHeaders(), HttpStatus.INTERNAL_SERVER_ERROR, request);
     }
 }
