@@ -18,10 +18,10 @@ services:
       retries: 10
 
   wiremock:
-    # The notification receiver for a manual run (decision 15.10.2026): answers POST /external/notifications with 200,
-    # the stub is wiremock/mappings/notifications.json. Same WireMock version as in the tests (wiremock-spring-boot
-    # 4.4.3 -> WireMock 3.13.2; check with: mvnw dependency:tree -Dincludes=org.wiremock).
-    # The application sends over HTTPS (decision 17.10.2026): https://localhost:8443/external/notifications.
+    # The notification receiver for a manual run: answers POST /external/notifications with 200, the stub is
+    # wiremock/mappings/notifications.json. Same WireMock version as in the tests (wiremock-spring-boot 4.4.3 ->
+    # WireMock 3.13.2; check with: mvnw dependency:tree -Dincludes=org.wiremock).
+    # The application sends over HTTPS: https://localhost:8443/external/notifications.
     # Received requests (admin API over plain HTTP, so a browser opens it without a certificate warning):
     # GET http://localhost:8089/__admin/requests
     image: wiremock/wiremock:3.13.2

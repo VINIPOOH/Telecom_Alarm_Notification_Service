@@ -8,15 +8,17 @@ import com.se.telecomalarm.alarm.db.repository.AlarmPairLockRepository;
 import org.springframework.stereotype.Service;
 
 /**
- * The per-element JVM lock: a fixed array of {@link ReentrantLock}s ("stripes"); an element always maps to the same
- * stripe by the hash of its elementId.
+ * The per-element lock, in the JVM. There is a fixed number of ReentrantLocks (alarm.element-locks.count), and every
+ * elementId always gets the same one of them, chosen by the hash of the elementId. Several elements may share a lock.
  * <p>
- * It makes "transaction, commit, queue the notifications" one block per element, so the notifications of an element
- * are queued in commit order. Only inside one instance. The correctness of the state is not its job: that is the
- * advisory lock of the alarm ({@link AlarmPairLockRepository}), which holds across instances.
+ * Its purpose is the notification order: "transaction, commit, queue the notifications" runs as one block per
+ * element, so an element's notifications are queued in commit order. It works inside one instance only. The state
+ * does not depend on it: that is the per-alarm advisory lock ({@link AlarmPairLockRepository}), which works across
+ * instances.
  * <p>
- * Two elements on one stripe just wait for each other: lost parallelism, never wrong data. A fixed array, not a map
- * per element: no growth with the number of elements and nothing to clean up.
+ * Two elements that share a lock only wait for each other: less parallelism, never wrong data. A fixed number of
+ * locks rather than one lock per element: it does not grow with the number of elements, and there is nothing to
+ * clean up.
  */
 @Service
 class ElementLocksService {
@@ -24,7 +26,7 @@ class ElementLocksService {
     private final ReentrantLock[] stripes;
 
     ElementLocksService(ElementLockProperties properties) {
-        stripes = new ReentrantLock[properties.stripes()];
+        stripes = new ReentrantLock[properties.count()];
         for (int i = 0; i < stripes.length; i++) {
             stripes[i] = new ReentrantLock();
         }

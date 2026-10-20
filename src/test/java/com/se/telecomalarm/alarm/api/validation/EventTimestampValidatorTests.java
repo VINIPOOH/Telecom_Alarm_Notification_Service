@@ -15,7 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 /**
- * Section G of the test-case spec: the "not too far in the future" rule, no Spring, with a fixed clock.
+ * The G tests: the "not too far in the future" rule, no Spring, with a fixed clock.
  */
 class EventTimestampValidatorTests {
 
@@ -38,10 +38,10 @@ class EventTimestampValidatorTests {
                 arguments("now", NOW, false));
     }
 
-    @ParameterizedTest(name = "timestamp = {0}: tooFarInFuture = {2}")
+    @ParameterizedTest(name = "timestamp = {0}: isLaterThanNowPlusTolerance = {2}")
     @MethodSource("toleranceBoundary")
     @DisplayName("G-04 exact boundary of the future tolerance")
     void g04_toleranceBoundary(String label, long timestamp, boolean expectedTooFar) {
-        assertThat(VALIDATOR.tooFarInFuture(timestamp)).isEqualTo(expectedTooFar);
+        assertThat(VALIDATOR.isLaterThanNowPlusTolerance(timestamp)).isEqualTo(expectedTooFar);
     }
 }

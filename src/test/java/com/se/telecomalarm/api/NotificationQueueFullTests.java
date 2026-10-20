@@ -12,7 +12,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.ok;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * E-07 / E-08 of the test-case spec (a full notification queue) and the "notification was dropped" variant of B-11.
+ * E-07 / E-08 (a full notification queue) and the "notification was dropped" variant of B-11.
  * <p>
  * Own Spring context, by necessity: the queue capacity is read when the application starts, and these tests need a
  * capacity of {@value #CAPACITY}. A different property makes a different context key, so Spring starts a second

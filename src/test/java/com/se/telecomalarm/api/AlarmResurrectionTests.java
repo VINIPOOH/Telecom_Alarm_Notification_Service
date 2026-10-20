@@ -8,8 +8,8 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Section C.3 of the test-case spec: a CLEARED that arrives before its RAISED, and its resurrection
- * (SPEC section 2: an accepted RAISED turns to ACCEPTED every REJECTED CLEARED of its pair that is later than it).
+ * C tests: a CLEARED that arrives before its RAISED, and its resurrection (rule B5: an accepted RAISED turns to
+ * ACCEPTED every REJECTED CLEARED of its pair that is later than it).
  * <p>
  * The notification parts of C-20 (e1, then e2) and C-23 (e1, e2, e3) are E-11 in {@code NotificationTests}.
  */

@@ -12,9 +12,7 @@ import org.springframework.web.service.annotation.PostExchange;
  */
 public interface NotificationClient {
 
-    /**
-     * The HTTP Service group; the name is the middle part of {@code spring.http.serviceclient.notifications.*}.
-     */
+    //The HTTP Service group; the name is the middle part of {@code spring.http.serviceclient.notifications.*}.
     String GROUP = "notifications";
 
     @PostExchange(url = "/external/notifications", contentType = MediaType.APPLICATION_JSON_VALUE)

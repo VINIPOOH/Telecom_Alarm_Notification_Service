@@ -20,32 +20,32 @@ class DefaultAlarmEventService implements AlarmEventService {
     }
 
     /**
-     * Accepting an event: per-element JVM lock -> transaction ({@link AlarmEventRecorderService#record}) -> commit ->
-     * notifications -> unlock. Not {@code @Transactional}: the commit has happened when {@code record} returns.
+     * Order: per-element-id lock, then the transaction ({@link AlarmEventRecorderService#record}), then the
+     * notifications, then unlock. Not @Transactional: the transaction is inside that method and has committed when it
+     * returns.
      * <ul>
-     *   <li>the JVM lock is taken before the transaction, so requests of one element wait without holding a pool
-     *       connection;</li>
-     *   <li>notifications are queued after the commit: a rolled-back event never gets queue;</li>
-     *   <li>the lock is released after the notifications are queued, so for one element the queue order is the commit
-     *       order.</li>
+     *   <li>The lock is taken before the transaction, so requests of one element wait without holding a database
+     *       connection.</li>
+     *   <li>Notifications are queued after the commit, so a rolled-back event is never notified.</li>
+     *   <li>The lock is released only after queueing, so for one element the queue order is the commit order.</li>
      * </ul>
      */
     @Override
-    public AlarmEventResult accept(AlarmEvent event) {
+    public AlarmEventIntakeResult accept(AlarmEvent event) {
         return elementLocksService.callLocked(event.elementId(), () -> recordAndNotify(event));
     }
 
-    private AlarmEventResult recordAndNotify(AlarmEvent event) {
-        Recorded recorded = alarmEventRecorderService.record(event); // committed when it returns
-        return switch (recorded.outcome()) {
-            case EXACT_REPEAT -> new AlarmEventResult(false, NotificationOutcome.NOT_SENT_DUPLICATE);
+    private AlarmEventIntakeResult recordAndNotify(AlarmEvent event) {
+        AlarmEventRecordResult recordResult = alarmEventRecorderService.record(event); // committed when it returns
+        return switch (recordResult.eventOutcome()) {
+            case EXACT_REPEAT -> new AlarmEventIntakeResult(false, NotificationOutcome.NOT_SENT_DUPLICATE);
             case REJECTED -> throw new UnknownAlarmException(event.eventId()); // The REJECTED row is committed; now the exception is thrown.
             case ACCEPTED -> {
-                // The RAISED first, then the CLEARED it resurrected. The result reports only the
-                // notification only for processed event; what happened to the others is in the logs and notification_sent db column
-                NotificationOutcome notification = notificationQueue.enqueue(event);
-                recorded.resurrected().forEach(notificationQueue::enqueue);
-                yield new AlarmEventResult(true, notification);
+                // This event first, then the CLEARED events it resurrected. The answer reports only this event's
+                // notification; what happened to the others is in the log and in notification_sent.
+                NotificationOutcome notificationOutcome = notificationQueue.enqueue(event);
+                recordResult.resurrectedClearedEvents().forEach(notificationQueue::enqueue);
+                yield new AlarmEventIntakeResult(true, notificationOutcome);
             }
         };
     }

@@ -8,15 +8,13 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * A separate, strict JsonMapper for the history cursor ({@code after} / {@code next} of GET /api/alarms/history).
+ * A separate JsonMapper for the history cursor (the after / next values of the history API).
  * <p>
- * Not the API mapper, for two reasons: the API ignores unknown fields, while a cursor with any field besides
- * {@code ts} and {@code id} is not ours and must be a 400; and the format of cursors already given out must not change
- * when someone edits {@code spring.jackson.*}.
+ * Separate because the cursor needs other rules than the API: a cursor with unknown fields is not ours and must be
+ * rejected, and the cursor format must not change when someone changes the Jackson settings of the API.
  * <p>
- * {@code defaultCandidate = false}: without it a second JsonMapper bean makes plain {@code JsonMapper} injection
- * ambiguous, and Boot's API mapper ({@code @ConditionalOnMissingBean}) backs off, leaving the API on this strict one.
- * Inject it only with {@code @Qualifier(HISTORY_CURSOR_JSON_MAPPER)}.
+ * It is not the default JsonMapper (defaultCandidate = false), so the rest of the application keeps Spring Boot's
+ * mapper. To get this one, inject it by its qualifier.
  */
 @Configuration(proxyBeanMethods = false)
 public class HistoryCursorJsonConfiguration {

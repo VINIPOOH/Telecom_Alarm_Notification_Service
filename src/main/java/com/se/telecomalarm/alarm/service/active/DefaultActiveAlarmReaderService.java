@@ -10,10 +10,6 @@ import com.se.telecomalarm.alarm.service.AlarmEvent;
 import com.se.telecomalarm.alarm.service.AlarmEventEntityToDataMapper;
 import org.springframework.stereotype.Service;
 
-/**
- * Read only and without the Alarm lock: every method here is one SELECT, which under READ COMMITTED sees one snapshot
- * of both tables and takes no row locks, so it neither waits for a writer nor makes one wait.
- */
 @Service
 class DefaultActiveAlarmReaderService implements ActiveAlarmReaderService {
 
@@ -35,17 +31,19 @@ class DefaultActiveAlarmReaderService implements ActiveAlarmReaderService {
         return toEvents(activeAlarms.findAllByHistory_ElementIdOrderByHistory_AlarmCodeAsc(elementId));
     }
 
-    /**
-     * The query returns only the groups that have rows (GROUP BY), so the zeros are added here.
-     */
     @Override
     public Map<AlarmSeverity, Long> countAlarmsBySeverity() {
+        Map<AlarmSeverity, Long> counts = zeroForEverySeverity();
+        for (Object[] row : activeAlarms.countActiveBySeverity()) {
+            counts.put((AlarmSeverity) row[0], ((Number) row[1]).longValue());
+        }
+        return counts;
+    }
+
+    private static Map<AlarmSeverity, Long> zeroForEverySeverity() {
         Map<AlarmSeverity, Long> counts = new EnumMap<>(AlarmSeverity.class);
         for (AlarmSeverity severity : AlarmSeverity.values()) {
             counts.put(severity, 0L);
-        }
-        for (Object[] row : activeAlarms.countActiveBySeverity()) {
-            counts.put((AlarmSeverity) row[0], ((Number) row[1]).longValue());
         }
         return counts;
     }

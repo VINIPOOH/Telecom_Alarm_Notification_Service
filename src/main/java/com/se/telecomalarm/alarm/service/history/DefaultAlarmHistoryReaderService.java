@@ -20,15 +20,13 @@ class DefaultAlarmHistoryReaderService implements AlarmHistoryReaderService {
         this.alarmEventEntityToDataMapper = alarmEventEntityToDataMapper;
     }
 
-    /**
-     * Asks for one row more than the page: if it comes, there is a next page.
-     */
+    //Asks for one row more than the page: if it comes, there is a next page.
     @Override
-    public HistoryPage readPage(String elementId, String alarmCode, HistoryPosition after, int limit) {
+    public HistoryPage readPage(String elementId, String alarmCode, HistoryCursor after, int limit) {
         Limit limitPlusOne = Limit.of(limit + 1);
         List<AlarmEventEntity> rows = after == null
                                       ? alarmEventRepository.findAcceptedFirstPage(elementId, alarmCode, limitPlusOne)
-                                      : alarmEventRepository.findAcceptedNextPage(elementId, alarmCode, after.timestamp(), after.eventId(), limitPlusOne);
+                                      : alarmEventRepository.findAcceptedNextPage(elementId, alarmCode, after.eventTimestampMillis(), after.tieBreakerEventId(), limitPlusOne);
 
         List<AlarmEvent> items = rows.stream()
                 .limit(limit)

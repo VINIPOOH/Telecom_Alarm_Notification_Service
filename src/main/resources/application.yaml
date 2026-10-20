@@ -16,7 +16,7 @@ spring:
     deserialization:
       # Unknown JSON fields are ignored (already the Jackson 3 default; written down explicitly)
       fail-on-unknown-properties: false
-      # A fractional timestamp is a 400, it is not rounded
+      # A fractional timestamp is a 400, it is not cut to a whole number
       accept-float-as-int: false
   ssl:
     bundle:
@@ -41,41 +41,41 @@ spring:
   http:
     clients:
       imperative:
-        # The JDK HttpClient for the notification receiver, chosen explicitly (SPEC section 6). Without this Spring Boot
+        # The JDK HttpClient for the notification receiver, chosen explicitly. Without this Spring Boot
         # picks the client by what is on the classpath (Apache HttpClient -> Jetty -> Reactor -> JDK), and WireMock
         # brings Apache HttpClient into the tests: the tests would run on another client than production, and the
         # timeouts would be checked on the wrong one.
         factory: jdk
     serviceclient:
-      # The HTTP Service client group of NotificationClient (standard Spring Boot properties, SPEC section 6).
+      # The HTTP Service client group of NotificationClient (standard Spring Boot properties).
       notifications:
         # The address of the receiver WITHOUT the path: the client adds the path of its @PostExchange
-        # (/external/notifications, NotificationClient). HTTPS (decision 17.10.2026).
+        # (/external/notifications, NotificationClient). HTTPS.
         # Default: the WireMock of docker-compose.yml (manual run), HTTPS port 8443.
         base-url: https://localhost:8443
         ssl:
-          # Which certificates the client trusts for the receiver: the bundle below. A bundle REPLACES the JDK's
-          # default trust (cacerts), it does not add to it. So with this default the client trusts ONLY the
-          # local-development certificate of the WireMock receiver. For a real receiver this must be overridden:
-          # a bundle with the certificate of the CA that issued the receiver's certificate. Forgetting it is a loud
-          # failure (every notification fails the TLS handshake, WARN in the log), not a silent one.
+          # Which certificates the client trusts for the receiver: the bundle notification-receiver (spring.ssl.bundle
+          # above). A bundle REPLACES the JDK's default trust (cacerts), it does not add to it. So with this default the
+          # client trusts ONLY the local-development certificate of the WireMock receiver. For a real receiver this must
+          # be overridden: a bundle with the certificate of the CA that issued the receiver's certificate. Forgetting it
+          # is a loud failure (every notification fails the TLS handshake, WARN in the log), not a silent one.
           bundle: notification-receiver
         # How long one notification may hold a sender thread (and delay the next ones of its element) when the
-        # receiver is unreachable or hangs (decision 16.10.2026).
+        # receiver is unreachable or hangs.
         connect-timeout: 1s
         read-timeout: 5s
 
 # Our own settings (the *Properties records in alarm/config). The numbers are set ONLY here: the records have no
 # defaults in the code, and a key that is missing stops the start with a message naming the key.
 alarm:
-  # The notification mechanism (NotificationProperties). Decision 17.10.2026, the numbers are ESTIMATES
-  # ("уведомления (решения)" 5.1, to be revisited).
+  # The notification mechanism (NotificationProperties). The numbers are ESTIMATES, explained in README (Design
+  # decisions -> Notifications).
   notification:
     # Sender threads shared by all elements. Little's law: notifications in flight = rate x time of one send,
     # 100/s x 50 ms = 5; 10 is that with a margin of two.
     pool-size: 10
-    # Places of the buffer over all elements: rate x how long the receiver may be down without losing notifications,
-    # 100/s x 30 s = 3000.
+    # Notifications that may wait or be in flight, over all elements: rate x how long the receiver may be down
+    # without losing notifications, 100/s x 30 s = 3000.
     queue-capacity: 3000
     # How long the stop of the application waits for the queued notifications before the senders are interrupted.
     # Why a limit at all: Spring does not cut a synchronous stop() short (spring.lifecycle.timeout-per-shutdown-phase
@@ -84,19 +84,19 @@ alarm:
     # outside: docker stop sends SIGKILL after 10 s, Kubernetes after 30 s (terminationGracePeriodSeconds); after it
     # nothing runs, not even the WARN with the number of lost notifications. So the limit, plus the rest of the stop
     # (the web server, the database pool), must fit into the smallest of these budgets with a margin.
-    # 5 s: half of docker stop's default 10 s. With the receiver up, 5 s are thousands of notifications; with it down,
-    # waiting longer on every restart buys nothing.
+    # 5 s: half of docker stop's default 10 s. With the receiver up, 5 s are about a thousand notifications; with it
+    # down, waiting longer on every restart buys nothing.
     shutdown-timeout: 5s
   # The intake of events (AlarmIngestionProperties).
   ingestion:
-    # How far ahead of the server's "now" an event timestamp may be; later is a 400 (SPEC section 1). The tests
+    # How far ahead of the server's "now" an event timestamp may be; later is a 400. The tests
     # A-19 / A-20 (AlarmIngestionValidationTests) put their events at +5:01 and +4:59 from "now": change them together
     # with this value.
     timestamp-future-tolerance: 5m
-  # The per-element JVM lock (ElementLockProperties, ElementLocks).
+  # The per-element JVM lock (ElementLockProperties, ElementLocksService).
   element-locks:
     # How many locks the elements are spread over. Two elements on one lock wait for each other without need, so the
     # number is chosen to keep that rare: with 200 requests in flight (the default Tomcat maximum) on different
     # elements, a request shares its lock with one of the others with probability about 199 / 4096, under 5 %. The cost
     # is one ReentrantLock per stripe, roughly 50 bytes each, about 200 KB.
-    stripes: 4096
+    count: 4096

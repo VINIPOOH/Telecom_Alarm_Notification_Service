@@ -13,9 +13,9 @@ import static com.se.telecomalarm.api.TestEvent.raised;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Checks the test-side reference model {@link ExpectedAlarmState} against answers worked out by hand from the
- * test-case spec. The concurrent tests of section C trust this model for their expected state, so a mistake in it
- * would make them check the wrong thing; this class catches that without Spring or a database.
+ * Checks the test-side reference model {@link ExpectedAlarmState} against answers worked out by hand. The concurrent
+ * C tests trust this model for their expected state, so a mistake in it would make them check the wrong thing; this
+ * class catches that without Spring or a database.
  * <p>
  * It tests test code, not the application, so it is green from the start.
  */

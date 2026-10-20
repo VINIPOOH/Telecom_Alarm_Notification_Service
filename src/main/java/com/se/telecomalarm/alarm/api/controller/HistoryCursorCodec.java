@@ -7,7 +7,7 @@ import java.util.Base64;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.se.telecomalarm.alarm.api.InvalidQueryParameterException;
 import com.se.telecomalarm.alarm.config.HistoryCursorJsonConfiguration;
-import com.se.telecomalarm.alarm.service.history.HistoryPosition;
+import com.se.telecomalarm.alarm.service.history.HistoryCursor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
@@ -25,34 +25,28 @@ class HistoryCursorCodec {
     }
 
     /**
-     * Reads a string made by {@link #encode}.
-     *
      * @throws InvalidQueryParameterException the string does not decode: characters outside the base64url alphabet,
      *                                        bytes that are not JSON, a JSON of another structure
      */
-    HistoryPosition decode(String text) {
-        Payload payload;
+    HistoryCursor decode(String text) {
+        PagePointer pagePointer;
         try {
-            payload = json.readValue(Base64.getUrlDecoder().decode(text), Payload.class);
+            pagePointer = json.readValue(Base64.getUrlDecoder().decode(text), PagePointer.class);
         } catch (IllegalArgumentException | JacksonException e) {
             throw invalidCursor();
         }
-        if (payload == null || payload.timestamp() == null || payload.eventId() == null || payload.eventId().isEmpty()) {
+        if (pagePointer == null || pagePointer.timestamp() == null || pagePointer.eventId() == null || pagePointer.eventId().isEmpty()) {
             throw invalidCursor();
         }
-        return new HistoryPosition(payload.timestamp(), payload.eventId());
+        return new HistoryCursor(pagePointer.timestamp(), pagePointer.eventId());
     }
 
-    String encode(HistoryPosition position) {
-        byte[] bytes = json.writeValueAsBytes(new Payload(position.timestamp(), position.eventId()));
+    String encode(HistoryCursor position) {
+        byte[] bytes = json.writeValueAsBytes(new PagePointer(position.eventTimestampMillis(), position.tieBreakerEventId()));
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
-    /**
-     * The JSON inside the cursor. The keys are short ({@code ts}, {@code id}) because the cursor travels in the URL.
-     * Boxed types: a missing field arrives as null and is rejected in {@link #decode}.
-     */
-    record Payload(
+    record PagePointer(
             @JsonProperty("ts") Long timestamp,
             @JsonProperty("id") String eventId) {
     }

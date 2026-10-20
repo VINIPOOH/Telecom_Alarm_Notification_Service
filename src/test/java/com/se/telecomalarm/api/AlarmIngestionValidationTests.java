@@ -25,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 /**
- * Section A of the test-case spec: acceptance and validation of POST /api/alarms.
+ * The A tests: acceptance and validation of POST /api/alarms.
  */
 class AlarmIngestionValidationTests extends ApiTestBase {
 

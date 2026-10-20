@@ -3,9 +3,7 @@ package com.se.telecomalarm.alarm.service;
 import com.se.telecomalarm.alarm.domain.AlarmSeverity;
 import com.se.telecomalarm.alarm.domain.AlarmStatus;
 
-/**
- * A validated alarm event, as the service sees it.
- */
+//A validated alarm event, as the service sees it.
 public record AlarmEvent(
         String eventId,
         String elementId,

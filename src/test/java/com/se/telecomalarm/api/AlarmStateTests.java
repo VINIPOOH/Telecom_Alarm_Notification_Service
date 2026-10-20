@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Section C.1 of the test-case spec: basic state transitions, events arriving in time order.
+ * C tests: basic state transitions, events arriving in time order.
  * <p>
  * The notification part of C-06 ("a notification for e3 is sent") is in {@code NotificationTests}.
  */
@@ -84,7 +84,7 @@ class AlarmStateTests extends AlarmStateTestBase {
 
         postAccepted(cellDown100, highCpu100, cellDown200, cleared(at(5), "e4"));
 
-        // Sorted by elementId, then alarmCode (SPEC section 4).
+        // Sorted by elementId, then alarmCode.
         assertThat(activeAlarms()).containsExactly(ActiveAlarm.of(highCpu100), ActiveAlarm.of(cellDown200));
     }
 

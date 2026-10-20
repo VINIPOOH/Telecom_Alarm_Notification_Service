@@ -10,5 +10,5 @@ public interface AlarmHistoryReaderService {
      * @param after     read after this position; null for the first page
      * @param limit     page size, at least 1 (checked by the caller)
      */
-    HistoryPage readPage(String elementId, String alarmCode, HistoryPosition after, int limit);
+    HistoryPage readPage(String elementId, String alarmCode, HistoryCursor after, int limit);
 }

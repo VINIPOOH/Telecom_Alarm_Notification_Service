@@ -8,8 +8,8 @@ public class InvalidQueryParameterException extends RuntimeException {
 
     private final String field;
 
-    public InvalidQueryParameterException(String field, String message) {
-        super(message);
+    public InvalidQueryParameterException(String field, String fixedMessage) {
+        super(fixedMessage);
         this.field = field;
     }
 

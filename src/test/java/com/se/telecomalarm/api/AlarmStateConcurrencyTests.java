@@ -13,15 +13,15 @@ import org.junit.jupiter.api.RepetitionInfo;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Section C.4 of the test-case spec: concurrent requests must not corrupt the state (TZ section 3).
+ * C tests: concurrent requests must not corrupt the state (the assignment, section 3).
  * <p>
  * How the requests really run at the same time: {@link SimultaneousRequests} gives every request its own thread
  * and holds all threads at one barrier, so nobody sends until the last thread is ready; then all are released
  * together. The service sees them as overlapping requests; whatever the service does to keep the events of one
- * pair in order (SPEC section 2: the per-pair advisory lock, the per-element JVM lock) is what is under test.
+ * pair in order (the per-pair advisory lock, the per-element JVM lock) is what is under test.
  * <p>
  * How the expected state is computed: by {@link ExpectedAlarmState}, a closed formula over the whole set of events
- * written from the rules of SPEC section 2 (not the application's step-by-step algorithm). With concurrent
+ * written from the state rules B1-B6 (not the application's step-by-step algorithm). With concurrent
  * requests the arrival order is unknown, but the final state must not depend on it; the formula needs no order.
  * The answer to each single request DOES depend on the order, so only its allowed range is checked: a RAISED is
  * always 201, a CLEARED is 201 or 409.

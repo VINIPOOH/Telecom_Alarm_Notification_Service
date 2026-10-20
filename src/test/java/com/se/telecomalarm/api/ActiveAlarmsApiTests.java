@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Section D of the test-case spec, GET /api/alarms/active (SPEC section 4): D-01, D-01a, D-02.
+ * The D tests of GET /api/alarms/active: D-01, D-01a, D-02.
  * <p>
  * These tests read the raw response, not {@link #activeAlarms()}: the helper of the state tests checks the fields
  * and parses the records, here the shape of the response itself is under test (a bare array, exactly six keys,

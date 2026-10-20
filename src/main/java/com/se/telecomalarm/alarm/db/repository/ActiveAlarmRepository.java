@@ -10,8 +10,8 @@ import org.springframework.data.jpa.repository.Query;
 public interface ActiveAlarmRepository extends JpaRepository<ActiveAlarmEntity, String> {
 
     /**
-     * "At most one row per alarm" is not a database constraint: it holds because every change of an alarm runs under its
-     * advisory lock ({@link AlarmPairLockRepository}).
+     * The active row of one alarm, if it has one. There is at most one, though not by a database constraint: every change
+     * of an alarm runs under its advisory lock (AlarmPairLockRepository). With two rows this method would throw Exception.
      */
     Optional<ActiveAlarmEntity> findByHistory_ElementIdAndHistory_AlarmCode(String elementId, String alarmCode);
 

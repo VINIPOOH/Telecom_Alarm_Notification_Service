@@ -11,10 +11,5 @@ public interface NotificationQueue {
      */
     NotificationOutcome enqueue(AlarmEvent event);
 
-    /**
-     * How many notifications occupy the buffer right now: waiting in the queue plus being sent at this moment.
-     * {@code 0} means nothing is being sent and nothing is left to send. Used by the tests and may be used as a metric of the
-     * queue depth.
-     */
-    int pendingCount();
+    int usedQueueCapacity();
 }

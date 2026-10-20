@@ -17,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 /**
- * Section C.2 of the test-case spec: events out of time order (rule 2 and the total order of SPEC section 2).
+ * C tests: events out of time order (rules B1, B2).
  * <p>
  * The notification part of C-10 ("a notification for e3 is sent") is in {@code NotificationTests}.
  */

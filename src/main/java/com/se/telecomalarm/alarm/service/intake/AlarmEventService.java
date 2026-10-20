@@ -11,5 +11,5 @@ public interface AlarmEventService {
      * @throws UnknownAlarmException    a CLEARED without an earlier accepted RAISED of its alarm; it IS stored, as
      *                                  REJECTED
      */
-    AlarmEventResult accept(AlarmEvent event);
+    AlarmEventIntakeResult accept(AlarmEvent event);
 }

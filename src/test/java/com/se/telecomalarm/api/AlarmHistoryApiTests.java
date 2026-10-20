@@ -24,12 +24,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 /**
- * Section D of the test-case spec, GET /api/alarms/history (SPEC section 4): D-09 .. D-17.
+ * The D tests of GET /api/alarms/history: D-09 .. D-17.
  * <p>
  * The response is {@code {items, next}}: an item is the full event with {@code status} (no {@code result}, no
  * {@code notification_sent}), only ACCEPTED events, sorted by timestamp and then eventId, two optional filters
- * ({@code elementId}, {@code alarmCode}; decision of 16.10.2026) combined with AND, {@code limit} 50 by default and
- * 500 at most.
+ * ({@code elementId}, {@code alarmCode}) combined with AND, {@code limit} 50 by default and 500 at most.
  * <p>
  * The cursor is opaque: the tests never decode {@code next} and never build a cursor. They only take {@code next}
  * from a response and pass it back as {@code after}. The one exception is D-16 "wrong structure", which sends the

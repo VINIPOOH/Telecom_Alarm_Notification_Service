@@ -62,9 +62,9 @@ import static org.awaitility.Awaitility.await;
  * <b>Timing.</b> The read timeout of the notification client is the production one. Every
  * WireMock delay and every wait limit is derived from it ({@link #readTimeout()}), never written as a number in a test.
  * <p>
- * <b>Waiting for "nothing more will be sent".</b> {@link NotificationQueue#pendingCount()} counts the notifications
+ * <b>Waiting for "nothing more will be sent".</b> {@link NotificationQueue#usedQueueCapacity()} counts the notifications
  * waiting in the queue plus the ones being sent; a place is given back only after the send attempt and the
- * {@code notification_sent} update. So {@code pendingCount() == 0} means: every notification queued so far has
+ * {@code notification_sent} update. So {@code usedQueueCapacity() == 0} means: every notification queued so far has
  * reached the receiver (or failed) and its flag is written. Checks of the kind "no notification" and
  * "{@code notification_sent} stayed false" wait for that state instead of sleeping.
  */
@@ -120,7 +120,7 @@ public abstract class ApiTestBase {
     @Autowired
     private Environment environment;
     /**
-     * Asked only {@link NotificationQueue#pendingCount()}: the one deliberate look inside the application.
+     * Asked only {@link NotificationQueue#usedQueueCapacity()}: the one deliberate look inside the application.
      */
     @Autowired
     private NotificationQueue notificationQueue;
@@ -356,7 +356,7 @@ public abstract class ApiTestBase {
     }
 
     /**
-     * Waits until {@link NotificationQueue#pendingCount()} is 0; fails with a clear message when the limit passes.
+     * Waits until {@link NotificationQueue#usedQueueCapacity()} is 0; fails with a clear message when the limit passes.
      * Polled every 20 ms, first check at once.
      */
     protected void awaitNotificationQueueEmpty(Duration limit, String when) {
@@ -364,8 +364,8 @@ public abstract class ApiTestBase {
                 .atMost(limit)
                 .pollDelay(Duration.ZERO)
                 .pollInterval(Duration.ofMillis(20))
-                .untilAsserted(() -> assertThat(notificationQueue.pendingCount())
-                        .as("NotificationQueue.pendingCount() %s: still not 0 after up to %s; notifications left in "
+                .untilAsserted(() -> assertThat(notificationQueue.usedQueueCapacity())
+                        .as("NotificationQueue.usedQueueCapacity() %s: still not 0 after up to %s; notifications left in "
                                     + "the queue would reach the receiver and the database during the next test", when, limit)
                         .isZero());
     }

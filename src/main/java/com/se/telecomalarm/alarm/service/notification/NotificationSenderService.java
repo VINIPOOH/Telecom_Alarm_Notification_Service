@@ -5,15 +5,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 /**
- * Delivery of ONE notification, in a sender thread of {@link PerElementNotificationQueueService}: the POST to the receiver,
- * then {@code notification_sent = true}.
+ * Sends one notification (in a sender thread of {@link PerElementNotificationQueueService}), then sets
+ * notification_sent = true. Anything but a 2xx answer is an exception; the caller logs it and goes on with the next
+ * notification.
  * <p>
- * Success is a 2xx answer and nothing else. Everything else is an exception for the caller, which
- * logs it and goes on with the next notification.
- * <p>
- * <b>The connection to the database</b> is taken only for the UPDATE, after the HTTP call has ended, and given back
- * at its commit ({@link AlarmEventRepository#markNotificationSent}): a sender waiting for a slow receiver holds a
- * thread, never a connection of the DB pool.
+ * The database connection is taken only for that UPDATE, after the HTTP call has ended: a sender waiting for a slow
+ * receiver holds a thread, never a connection of the database pool.
  */
 @Service
 class NotificationSenderService {
@@ -26,9 +23,6 @@ class NotificationSenderService {
         this.alarmEventRepository = alarmEventRepository;
     }
 
-    /**
-     * Sends the notification and records the delivery; throws if it was not delivered with a 2xx.
-     */
     void deliver(AlarmEventNotification notification) {
         ResponseEntity<Void> answer = notificationClient.send(notification);
         if (!answer.getStatusCode().is2xxSuccessful()) {

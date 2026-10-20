@@ -15,9 +15,6 @@ public class UnknownAlarmException extends RuntimeException {
         this.eventId = eventId;
     }
 
-    /**
-     * The id the client itself sent.
-     */
     public String eventId() {
         return eventId;
     }

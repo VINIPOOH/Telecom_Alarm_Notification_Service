@@ -67,7 +67,7 @@ class NotificationQueueShutdownTests {
         Duration took = timeOf(queue::stop);
 
         assertThat(sender.sent()).containsExactlyInAnyOrder("e1", "e2", "e3", "e4", "e5");
-        assertThat(queue.pendingCount()).as("notifications left after the stop").isZero();
+        assertThat(queue.usedQueueCapacity()).as("notifications left after the stop").isZero();
         assertThat(took).as("time of the stop").isLessThan(SHUTDOWN_TIMEOUT);
         assertThat(queue.isRunning()).as("isRunning after the stop").isFalse();
     }
@@ -88,7 +88,7 @@ class NotificationQueueShutdownTests {
                 .isGreaterThanOrEqualTo(SHUTDOWN_TIMEOUT)
                 .isLessThan(SHUTDOWN_TIMEOUT.plus(MARGIN));
         // The interrupted send gives its place back; the two notifications behind it are never sent and keep theirs.
-        await().atMost(MARGIN).until(() -> queue.pendingCount() == 2);
+        await().atMost(MARGIN).until(() -> queue.usedQueueCapacity() == 2);
         // Without the interrupt flag restored, the sender would take e2 here and hang again.
         await().during(Duration.ofMillis(300)).atMost(MARGIN).until(() -> sender.calls.get() == 1);
     }
@@ -101,7 +101,7 @@ class NotificationQueueShutdownTests {
         queue.stop();
 
         assertThat(queue.enqueue(event("e1", "BTS-1"))).isEqualTo(NotificationOutcome.DROPPED_QUEUE_FULL);
-        assertThat(queue.pendingCount()).isZero();
+        assertThat(queue.usedQueueCapacity()).isZero();
         assertThat(sender.sent()).isEmpty();
     }
 
@@ -113,10 +113,10 @@ class NotificationQueueShutdownTests {
         queue.enqueue(event("e1", "BTS-1"));
         assertThat(sender.started.await(5, TimeUnit.SECONDS)).as("the first send has started").isTrue();
         queue.stop();
-        await().atMost(MARGIN).until(() -> queue.pendingCount() == 0);
+        await().atMost(MARGIN).until(() -> queue.usedQueueCapacity() == 0);
 
         assertThat(queue.enqueue(event("e2", "BTS-1"))).isEqualTo(NotificationOutcome.DROPPED_QUEUE_FULL);
-        assertThat(queue.pendingCount()).isZero();
+        assertThat(queue.usedQueueCapacity()).isZero();
     }
 
     /**

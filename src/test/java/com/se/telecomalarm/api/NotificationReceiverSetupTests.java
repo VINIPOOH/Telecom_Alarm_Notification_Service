@@ -17,8 +17,8 @@ import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Not a case of the test-case spec: a check of the test set-up itself (the WireMock receiver), so that a failure of
- * the set-up is reported here, by name, and not as a strange failure of some section E test.
+ * Not a test of the application: a check of the test set-up itself (the WireMock receiver), so that a failure of
+ * the set-up is reported here, by name, and not as a strange failure of some E test.
  * <p>
  * The receiver speaks HTTPS only, with the self-signed local-development certificate. The probe below trusts it the
  * same way the application does, through the SSL bundle {@value #RECEIVER_SSL_BUNDLE}: if the bundle and the

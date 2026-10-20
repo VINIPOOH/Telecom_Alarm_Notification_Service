@@ -17,7 +17,6 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 /**
- * A row of {@code alarm_events}: every unique received event, accepted or rejected.
  * Never saved through Spring Data: a new row is written only by {@link AlarmEventRepository#insertRowIfAbsent}
  */
 @Entity

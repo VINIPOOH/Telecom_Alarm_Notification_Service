@@ -107,7 +107,7 @@ class PerElementNotificationQueueService implements NotificationQueue, SmartLife
     }
 
     @Override
-    public int pendingCount() {
+    public int usedQueueCapacity() {
         return totalQueueCapacity - freeNotificationSlots.availablePermits();
     }
 
@@ -125,13 +125,13 @@ class PerElementNotificationQueueService implements NotificationQueue, SmartLife
      * Graceful stop with a deadline. {@code shutdown()}: new senders are refused (see enqueue), the waiting and running
      * ones go on and empty their element queues. {@code awaitTermination}: waits for them at most
      * {@code shutdown-timeout}. {@code shutdownNow()}: interrupts what is left; those notifications are lost and their
-     * slots are never given back, so {@link #pendingCount()} after the stop is the number lost, for the log.
+     * slots are never given back, so {@link #usedQueueCapacity()} after the stop is the number lost, for the log.
      */
     @Override
     public void stop() {
         senders.shutdown();
         log.info("Stopping the notification senders: waiting up to {} for {} notification(s)", shutdownTimeout,
-                 pendingCount());
+                 usedQueueCapacity());
         try {
             if (senders.awaitTermination(shutdownTimeout.toMillis(), TimeUnit.MILLISECONDS)) {
                 log.info("Notification senders stopped: no notifications left in the queue");
@@ -142,7 +142,7 @@ class PerElementNotificationQueueService implements NotificationQueue, SmartLife
         }
         senders.shutdownNow();
         log.warn("The notification senders did not finish within {}: interrupted; {} notification(s) not sent, "
-                         + "their notification_sent stays false", shutdownTimeout, pendingCount());
+                         + "their notification_sent stays false", shutdownTimeout, usedQueueCapacity());
     }
 
     @Override
@@ -201,7 +201,7 @@ class PerElementNotificationQueueService implements NotificationQueue, SmartLife
             log.warn("The notification of event {} (element {}) failed, notification_sent stays false: {}",
                      notification.eventId(), notification.elementId(), e.toString());
         } finally {
-            // After the send AND the notification_sent update: pendingCount() counts both.
+            // After the send AND the notification_sent update: usedQueueCapacity() counts both.
             freeNotificationSlots.release();
         }
     }

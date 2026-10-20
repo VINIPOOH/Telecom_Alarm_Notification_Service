@@ -7,10 +7,10 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Section D of the test-case spec, GET /api/alarms/statistics (SPEC section 4): D-06, D-07, D-08.
+ * The D tests of GET /api/alarms/statistics: D-06, D-07, D-08.
  * <p>
  * The body is exactly an object {@code {"CRITICAL": n, "MAJOR": n, "WARNING": n, "INFO": n}}: four keys, always all
- * four, zeros included (API decisions, 16.10.2026). It counts active pairs, not events.
+ * four, zeros included. It counts active pairs, not events.
  */
 class AlarmStatisticsApiTests extends AlarmStateTestBase {
 

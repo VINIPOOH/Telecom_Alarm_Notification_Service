@@ -22,16 +22,16 @@ import static com.github.tomakehurst.wiremock.client.WireMock.serverError;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Section E of the test-case spec: notifications, with WireMock as the receiver. E-07 / E-08 need a queue of
- * capacity 2 and are in {@link NotificationQueueFullTests}; E-14 is postponed (16.10.2026). Also here: the
- * notification parts of C-06 and C-10 (E-11 holds those of C-20 and C-23).
+ * The E tests: notifications, with WireMock as the receiver. E-07 / E-08 need a queue of capacity 2 and are in
+ * {@link NotificationQueueFullTests}; E-14 tests the queue alone and is in {@code NotificationQueueShutdownTests}.
+ * Also here: the notification parts of C-06 and C-10 (E-11 holds those of C-20 and C-23).
  * <p>
  * How the tests wait (no {@code Thread.sleep}; delays exist only in WireMock):
  * <ul>
  *   <li>"a notification arrives" - Awaitility polls the {@link NotificationRecorder} until it is there;</li>
  *   <li>"notification_sent = true" - Awaitility polls the database;</li>
  *   <li>"nothing (more) is sent" / "notification_sent stays false" - first wait until the application's queue is
- *       empty ({@code pendingCount() == 0}), then look once: after that moment nothing can change any more.</li>
+ *       empty ({@code usedQueueCapacity() == 0}), then look once: after that moment nothing can change any more.</li>
  * </ul>
  * Tests that check an absence (E-09, E-12) also send one accepted <i>control</i> event and wait for its
  * notification: with it, "the receiver got only the control" means the rejected event was not notified, and not
@@ -84,7 +84,7 @@ class NotificationTests extends AlarmStateTestBase {
         ReceivedNotification notification = received.get(0);
         assertThat(mediaType(notification.contentType())).as("Content-Type of %s", notification).isEqualTo(JSON);
         // The form of an item of /history: the seven fields of the event, "description": null when it has none,
-        // and nothing about the state of the pair (SPEC section 6, 16.10.2026).
+        // and nothing about the state of the pair.
         assertThat(notification.jsonBody()).as("body of %s", notification).isEqualTo(event.asHistoryItem());
     }
 

@@ -17,7 +17,7 @@ import static com.se.telecomalarm.alarm.domain.AlarmSeverity.WARNING;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Section G of the test-case spec: the total order of events of one pair (SPEC section 2), no Spring, no database.
+ * The G tests: the total order of events of one pair (rules B1, B2), no Spring, no database.
  * {@code compare(a, b) > 0} reads "a is later than b".
  */
 class AlarmEventComparatorTests {

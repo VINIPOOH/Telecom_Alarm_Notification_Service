@@ -9,16 +9,15 @@ spring:
   http:
     serviceclient:
       notifications:
-        # The address of the receiver without the path (SPEC section 6); the client adds /external/notifications
-        # itself (@PostExchange of NotificationClient). wiremock.server.httpsBaseUrl
-        # ("https://localhost:<port>") is put into the environment by wiremock-spring-boot (@EnableWireMock on
-        # ApiTestBase) before the context starts; the placeholder is resolved when the property is read. The SSL
-        # bundle that trusts the receiver's certificate is not set here: the main application.yaml already points the
-        # client at it, and the test WireMock serves the same local-development certificate.
+        # The address of the receiver without the path; the client adds /external/notifications itself (@PostExchange
+        # of NotificationClient). wiremock.server.httpsBaseUrl ("https://localhost:<port>") is put into the environment
+        # by wiremock-spring-boot (@EnableWireMock on ApiTestBase) before the context starts; the placeholder is
+        # resolved when the property is read. The SSL bundle that trusts the receiver's certificate is not set here:
+        # the main application.yaml already points the client at it, and the test WireMock serves the same
+        # local-development certificate.
         base-url: ${wiremock.server.httpsBaseUrl}
         # connect-timeout and read-timeout are NOT set here: the tests run with the production values of
-        # src/main/resources/application.yaml (decision 16.10.2026); every WireMock delay and wait limit is computed
-        # from read-timeout.
+        # src/main/resources/application.yaml; every WireMock delay and wait limit is computed from read-timeout.
 
 server:
   tomcat:

@@ -10,8 +10,8 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 /**
- * The "right answer" of the state tests, computed by the tests themselves from the rules of SPEC section 2,
- * without any application code.
+ * The "right answer" of the state tests, computed by the tests themselves from the state rules B1-B6, without any
+ * application code.
  * <p>
  * It is deliberately NOT the algorithm the application runs. The application decides event by event, in arrival
  * order, under a per-pair lock: reject a CLEARED, later resurrect it, replace the active record. Here the final
@@ -34,7 +34,7 @@ final class ExpectedAlarmState {
     static final String ACCEPTED = "ACCEPTED";
     static final String REJECTED = "REJECTED";
     /**
-     * The total order of events of one pair (SPEC section 2), ascending: the later event compares greater.
+     * The total order of events of one pair (rules B1, B2), ascending: the later event compares greater.
      * <ol>
      *   <li>greater timestamp is later;</li>
      *   <li>equal timestamps: RAISED is later than CLEARED;</li>

@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Section D of the test-case spec, GET /api/alarms/elements/{elementId} (SPEC section 4): D-03, D-04, D-05.
+ * The D tests of GET /api/alarms/elements/{elementId}: D-03, D-04, D-05.
  * <p>
  * The record of /elements is the same record as in /active (one serialisation, so a client reads both responses with
  * one parser): six keys, {@code description: null} present, timestamp a JSON number. That is why these tests read the
