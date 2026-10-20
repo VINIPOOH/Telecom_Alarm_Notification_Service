@@ -1,0 +1,727 @@
+{
+  "info": {
+    "name": "Telecom Alarm Notification Service",
+    "description": "Requests to try the service locally (see README, How to run). Start with '0. Start a new run', then run the folders in order. Event ids and element ids contain {{runId}}, so every run starts with clean alarms.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "0. Start a new run",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.set(\"runId\", String(Date.now()));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"new runId: \" + pm.collectionVariables.get(\"runId\"), () => true);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "description": "Sets a new runId, so eventIds and elementIds of the requests below are fresh and the scenarios can be replayed. Run it first, then the folders in order.",
+        "header": [],
+        "url": "{{baseUrl}}/api/alarms/statistics"
+      }
+    },
+    {
+      "name": "1. Send events: answers and errors",
+      "item": [
+        {
+          "name": "1. Raise CELL_DOWN → 201 QUEUED",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"notification is QUEUED\", () => pm.expect(pm.response.json().notification).to.eql(\"QUEUED\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "description": "A new event: stored, the alarm becomes active, a notification is queued.",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"EVT-{{runId}}-1\",\n  \"elementId\": \"BTS-{{runId}}\",\n  \"alarmCode\": \"CELL_DOWN\",\n  \"severity\": \"CRITICAL\",\n  \"status\": \"RAISED\",\n  \"timestamp\": 1791800000000,\n  \"description\": \"Cell is not responding\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/alarms"
+          }
+        },
+        {
+          "name": "2. Repeat the same event → 200 NOT_SENT_DUPLICATE",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"notification is NOT_SENT_DUPLICATE\", () => pm.expect(pm.response.json().notification).to.eql(\"NOT_SENT_DUPLICATE\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "description": "An exact repeat (C2): nothing is written, no second notification.",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"EVT-{{runId}}-1\",\n  \"elementId\": \"BTS-{{runId}}\",\n  \"alarmCode\": \"CELL_DOWN\",\n  \"severity\": \"CRITICAL\",\n  \"status\": \"RAISED\",\n  \"timestamp\": 1791800000000,\n  \"description\": \"Cell is not responding\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/alarms"
+          }
+        },
+        {
+          "name": "3. Same eventId, other severity → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "description": "The eventId is taken by an event with other data (C2).",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"EVT-{{runId}}-1\",\n  \"elementId\": \"BTS-{{runId}}\",\n  \"alarmCode\": \"CELL_DOWN\",\n  \"severity\": \"MAJOR\",\n  \"status\": \"RAISED\",\n  \"timestamp\": 1791800000000,\n  \"description\": \"Cell is not responding\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/alarms"
+          }
+        },
+        {
+          "name": "4. Clear CELL_DOWN → 201 QUEUED",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"notification is QUEUED\", () => pm.expect(pm.response.json().notification).to.eql(\"QUEUED\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "description": "Clears the alarm: it leaves the active list, both events stay in history.",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"EVT-{{runId}}-2\",\n  \"elementId\": \"BTS-{{runId}}\",\n  \"alarmCode\": \"CELL_DOWN\",\n  \"severity\": \"CRITICAL\",\n  \"status\": \"CLEARED\",\n  \"timestamp\": 1791800060000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/alarms"
+          }
+        },
+        {
+          "name": "5. Clear an alarm that was never raised → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "description": "No accepted RAISED of this alarm earlier than the CLEARED (B4).",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"EVT-{{runId}}-3\",\n  \"elementId\": \"BTS-{{runId}}\",\n  \"alarmCode\": \"HIGH_CPU\",\n  \"severity\": \"MAJOR\",\n  \"status\": \"CLEARED\",\n  \"timestamp\": 1791800000000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/alarms"
+          }
+        },
+        {
+          "name": "6. Missing and blank fields → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"errors list the fields\", () => pm.expect(pm.response.json().errors.map(e => e.field)).to.include.members([\"elementId\", \"status\"]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "description": "Bean Validation reports every invalid field.",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"EVT-{{runId}}-4\",\n  \"elementId\": \"\",\n  \"alarmCode\": \"CELL_DOWN\",\n  \"severity\": \"MAJOR\",\n  \"timestamp\": 1791800000000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/alarms"
+          }
+        },
+        {
+          "name": "7. Unknown severity → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "description": "The JSON reader stops at the first unsupported value.",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"EVT-{{runId}}-5\",\n  \"elementId\": \"BTS-{{runId}}\",\n  \"alarmCode\": \"CELL_DOWN\",\n  \"severity\": \"LOW\",\n  \"status\": \"RAISED\",\n  \"timestamp\": 1791800000000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/alarms"
+          }
+        },
+        {
+          "name": "8. Timestamp far in the future → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "description": "More than 5 minutes after the server time (A5).",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"EVT-{{runId}}-6\",\n  \"elementId\": \"BTS-{{runId}}\",\n  \"alarmCode\": \"CELL_DOWN\",\n  \"severity\": \"MAJOR\",\n  \"status\": \"RAISED\",\n  \"timestamp\": 4102444800000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/alarms"
+          }
+        },
+        {
+          "name": "9. Content-Type text/plain → 415",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 415\", () => pm.response.to.have.status(415));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "text/plain"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"EVT-{{runId}}-7\",\n  \"elementId\": \"BTS-{{runId}}\",\n  \"alarmCode\": \"CELL_DOWN\",\n  \"severity\": \"MAJOR\",\n  \"status\": \"RAISED\",\n  \"timestamp\": 1791800000000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/alarms"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Resurrection: CLEARED arrives before its RAISED",
+      "item": [
+        {
+          "name": "1. CLEARED (10:05) arrives first → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "description": "No RAISED before it yet: rejected, but stored as REJECTED (B5).",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"EVT-{{runId}}-R2\",\n  \"elementId\": \"BTS-{{runId}}-R\",\n  \"alarmCode\": \"POWER_FAILURE\",\n  \"severity\": \"MAJOR\",\n  \"status\": \"CLEARED\",\n  \"timestamp\": 1791800300000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/alarms"
+          }
+        },
+        {
+          "name": "2. RAISED (10:00) arrives → 201, resurrects the CLEARED",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "description": "Accepted, and in the same transaction the CLEARED of 10:05 becomes ACCEPTED (resurrection).",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"EVT-{{runId}}-R1\",\n  \"elementId\": \"BTS-{{runId}}-R\",\n  \"alarmCode\": \"POWER_FAILURE\",\n  \"severity\": \"MAJOR\",\n  \"status\": \"RAISED\",\n  \"timestamp\": 1791800000000,\n  \"description\": \"Power lost\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/alarms"
+          }
+        },
+        {
+          "name": "3. Active alarms of the element → [] (cleared)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"no active alarms for the element\", () => pm.expect(pm.response.json()).to.eql([]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "description": "",
+            "header": [],
+            "url": "{{baseUrl}}/api/alarms/elements/BTS-{{runId}}-R"
+          }
+        },
+        {
+          "name": "4. History of the element → RAISED, then CLEARED",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const runId = pm.collectionVariables.get(\"runId\");",
+                  "pm.test(\"RAISED then the resurrected CLEARED\", () =>",
+                  "    pm.expect(pm.response.json().items.map(i => i.eventId)).to.eql([\"EVT-\" + runId + \"-R1\", \"EVT-\" + runId + \"-R2\"]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "description": "",
+            "header": [],
+            "url": "{{baseUrl}}/api/alarms/history?elementId=BTS-{{runId}}-R"
+          }
+        },
+        {
+          "name": "5. Repeat the CLEARED → 200 (now accepted)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"notification is NOT_SENT_DUPLICATE\", () => pm.expect(pm.response.json().notification).to.eql(\"NOT_SENT_DUPLICATE\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"EVT-{{runId}}-R2\",\n  \"elementId\": \"BTS-{{runId}}-R\",\n  \"alarmCode\": \"POWER_FAILURE\",\n  \"severity\": \"MAJOR\",\n  \"status\": \"CLEARED\",\n  \"timestamp\": 1791800300000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/alarms"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Read API",
+      "item": [
+        {
+          "name": "1. Active alarms",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "description": "",
+            "header": [],
+            "url": "{{baseUrl}}/api/alarms/active"
+          }
+        },
+        {
+          "name": "2. Active alarms of this run's element",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "description": "",
+            "header": [],
+            "url": "{{baseUrl}}/api/alarms/elements/BTS-{{runId}}"
+          }
+        },
+        {
+          "name": "3. Statistics",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "description": "",
+            "header": [],
+            "url": "{{baseUrl}}/api/alarms/statistics"
+          }
+        },
+        {
+          "name": "4. History, first page (limit 2)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const next = pm.response.json().next;",
+                  "pm.collectionVariables.set(\"nextCursor\", next || \"\");",
+                  "pm.test(\"next cursor saved for the next request\", () => true);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "description": "",
+            "header": [],
+            "url": "{{baseUrl}}/api/alarms/history?limit=2"
+          }
+        },
+        {
+          "name": "5. History, next page",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const next = pm.response.json().next;",
+                  "pm.collectionVariables.set(\"nextCursor\", next || \"\");"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "description": "Run after '4. History, first page'. Each run moves one page further; an empty nextCursor means the last page was reached.",
+            "header": [],
+            "url": "{{baseUrl}}/api/alarms/history?limit=2&after={{nextCursor}}"
+          }
+        },
+        {
+          "name": "6. History of this run's element",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "description": "",
+            "header": [],
+            "url": "{{baseUrl}}/api/alarms/history?elementId=BTS-{{runId}}"
+          }
+        },
+        {
+          "name": "7. History filtered by alarmCode",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "description": "",
+            "header": [],
+            "url": "{{baseUrl}}/api/alarms/history?alarmCode=CELL_DOWN&limit=10"
+          }
+        },
+        {
+          "name": "8. History with limit 0 → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "description": "",
+            "header": [],
+            "url": "{{baseUrl}}/api/alarms/history?limit=0"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Notification receiver (WireMock)",
+      "item": [
+        {
+          "name": "1. Notifications the receiver got",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "description": "Every POST /external/notifications the service sent (WireMock request journal). Works with the docker compose receiver.",
+            "header": [],
+            "url": "{{wiremockAdmin}}/__admin/requests"
+          }
+        },
+        {
+          "name": "2. Clear the receiver's list",
+          "event": [],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{wiremockAdmin}}/__admin/requests"
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "wiremockAdmin",
+      "value": "http://localhost:8089"
+    },
+    {
+      "key": "runId",
+      "value": "1"
+    },
+    {
+      "key": "nextCursor",
+      "value": ""
+    }
+  ]
+}
