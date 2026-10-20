@@ -9,12 +9,12 @@ import com.jayway.jsonpath.JsonPath;
 /**
  * What the test HTTP client got back: status, raw Content-Type header and body text.
  */
-record ApiResponse(int status, Optional<String> contentTypeHeader, String body) {
+public record ApiResponse(int status, Optional<String> contentTypeHeader, String body) {
 
     /**
      * Media type without parameters (charset etc.), lower case; null if the header is absent.
      */
-    String mediaType() {
+    public String mediaType() {
         return contentTypeHeader
                 .map(value -> value.split(";")[0].trim().toLowerCase(Locale.ROOT))
                 .orElse(null);
@@ -23,7 +23,7 @@ record ApiResponse(int status, Optional<String> contentTypeHeader, String body) 
     /**
      * Parses the body as JSON; fails if the body is not JSON.
      */
-    DocumentContext json() {
+    public DocumentContext json() {
         return JsonPath.parse(body);
     }
 
@@ -31,7 +31,7 @@ record ApiResponse(int status, Optional<String> contentTypeHeader, String body) 
      * The body as a JSON object: exactly the keys that are present, nothing added.
      */
     @SuppressWarnings("unchecked")
-    Map<String, Object> jsonObject() {
+    public Map<String, Object> jsonObject() {
         return json().read("$");
     }
 

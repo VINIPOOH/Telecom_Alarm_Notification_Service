@@ -6,7 +6,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 /**
  * Direct SQL access to the service's tables, bypassing the application code.
  */
-final class AlarmDb {
+public final class AlarmDb {
 
     private final JdbcTemplate jdbc;
 
@@ -21,7 +21,7 @@ final class AlarmDb {
         jdbc.execute("TRUNCATE active_alarms, alarm_events");
     }
 
-    List<HistoryRow> history() {
+    public List<HistoryRow> history() {
         return jdbc.query("""
                                   SELECT event_id, element_id, alarm_code, severity, status, event_timestamp,
                                   	   description, acceptance, notification_sent
@@ -49,18 +49,18 @@ final class AlarmDb {
         return Boolean.TRUE.equals(sent);
     }
 
-    List<String> activeEventIds() {
+    public List<String> activeEventIds() {
         return jdbc.queryForList("SELECT event_id FROM active_alarms ORDER BY event_id", String.class);
     }
 
-    Snapshot snapshot() {
+    public Snapshot snapshot() {
         return new Snapshot(history(), activeEventIds());
     }
 
     /**
      * One row of alarm_events; enum columns are read as their text labels.
      */
-    record HistoryRow(
+    public record HistoryRow(
             String eventId,
             String elementId,
             String alarmCode,
@@ -75,6 +75,6 @@ final class AlarmDb {
     /**
      * Everything the service stores, for "nothing changed" comparisons.
      */
-    record Snapshot(List<HistoryRow> history, List<String> activeEventIds) {
+    public record Snapshot(List<HistoryRow> history, List<String> activeEventIds) {
     }
 }

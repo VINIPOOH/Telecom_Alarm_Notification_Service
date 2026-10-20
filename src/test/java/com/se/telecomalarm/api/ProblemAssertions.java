@@ -10,11 +10,11 @@ import com.jayway.jsonpath.PathNotFoundException;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * The common checks for any error response (checks O1-O3 of the test-case spec, section 0.4).
+ * The common checks for any error response (checks O1-O3).
  * O4 (state unchanged) needs the database and O5 (no notification) needs the receiver; both live in
  * {@link ApiTestBase#postRawAndExpectProblem}.
  */
-final class ProblemAssertions {
+public final class ProblemAssertions {
 
     private static final List<String> FORBIDDEN_FRAGMENTS = List.of(
             "Exception", "Caused by",
@@ -32,7 +32,7 @@ final class ProblemAssertions {
     /**
      * Status first, so a wrong status is reported before anything about the body.
      */
-    static void assertProblem(ApiResponse response, int expectedStatus) {
+    public static void assertProblem(ApiResponse response, int expectedStatus) {
         assertThat(response.status()).as("HTTP status of %s", response).isEqualTo(expectedStatus);
 
         // O1

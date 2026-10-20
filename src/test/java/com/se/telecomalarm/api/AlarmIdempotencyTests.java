@@ -1,16 +1,10 @@
 package com.se.telecomalarm.api;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
-import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import com.se.telecomalarm.api.AlarmDb.HistoryRow;
 import org.junit.jupiter.api.DisplayName;
@@ -26,13 +20,15 @@ import static com.se.telecomalarm.api.AlarmEventJson.EVENT_ID;
 import static com.se.telecomalarm.api.AlarmEventJson.SEVERITY;
 import static com.se.telecomalarm.api.AlarmEventJson.STATUS;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.awaitility.Awaitility.await;
 
 /**
- * Section B of the test-case spec: idempotency by {@code eventId}.
+ * The B tests: idempotency by {@code eventId}.
  * <p>
  * The "notification was dropped" variant of B-11 needs a queue of capacity 2, so a Spring context of its own: it is
  * in {@code NotificationQueueFullTests}. B-06 needs only the receiver and stays here, in the shared context.
+ * <p>
+ * B-12 and B-13 (the eventId taken by another transaction while our INSERT waits) are in
+ * {@code com.se.telecomalarm.acceptance.DuplicateInsertRaceTests}.
  * <p>
  * "R(10:00, MAJOR, e1)" in the comments is the default event of {@link AlarmEventJson#valid(long)} at {@code t0}.
  */
@@ -54,12 +50,6 @@ class AlarmIdempotencyTests extends ApiTestBase {
      * B-10: how many times the two-request scenario runs (the database is emptied before every round).
      */
     private static final int CONFLICTING_RACE_ROUNDS = 30;
-
-    /**
-     * B-12, B-13: how long to wait until the service's INSERT is seen waiting for the test's transaction. Half of the
-     * 10 s HTTP timeout of {@link #postEvent}, so the request is still alive when the test commits.
-     */
-    private static final Duration INSERT_WAIT_LIMIT = Duration.ofSeconds(5);
 
     // ---- B-01 .. B-05: a repeat of an accepted event ------------------------------------------------------------
 
@@ -260,8 +250,8 @@ class AlarmIdempotencyTests extends ApiTestBase {
     void replayOfAcceptedEvent_alwaysAnswersNotSentDuplicate_whateverTheEarlierNotificationState(boolean delivered) {
         AlarmEventJson event = AlarmEventJson.valid(t0);
         givenAccepted(event);
-        // "Delivered" is notification_sent = true (SPEC section 6); the flag is set directly so that both states are
-        // certain. The sender writes the flag too, so first wait until it has finished: then nothing overwrites ours.
+        // "Delivered" is notification_sent = true; the flag is set directly so that both states are certain. The
+        // sender writes the flag too, so first wait until it has finished: then nothing overwrites ours.
         // The variant "the notification was dropped because the queue was full" is in NotificationQueueFullTests.
         awaitNotificationQueueEmpty();
         int updatedRows = jdbc.update("UPDATE alarm_events SET notification_sent = ? WHERE event_id = ?", delivered, "e1");
@@ -269,127 +259,6 @@ class AlarmIdempotencyTests extends ApiTestBase {
 
         assertDuplicateAnswer(postEvent(event), "e1");
         assertDuplicateAnswer(postEvent(event), "e1");
-    }
-
-    // ---- B-12, B-13: the eventId is taken by a transaction that commits while our INSERT waits ------------------
-
-    @Test
-    @DisplayName("B-12 the same event committed by another transaction while our INSERT waits on it: 200, a repeat")
-    void sameEventCommittedWhileInsertWaits_returns200_asExactRepeat() throws Exception {
-        HistoryRow sameEvent = expectedRaised("MAJOR"); // exactly what the request carries: R(10:00, MAJOR, e1)
-        int notificationsBefore = receivedNotifications().size();
-
-        ApiResponse response = postWhileAnotherTransactionHoldsUncommitted(sameEvent, AlarmEventJson.valid(t0));
-
-        assertDuplicateAnswer(response, "e1");
-        assertThat(db.snapshot())
-                .as("only the other transaction's row; the repeat wrote nothing (that transaction stored no active row)")
-                .isEqualTo(new AlarmDb.Snapshot(List.of(sameEvent), List.of()));
-        assertNoNotificationSince(notificationsBefore);
-    }
-
-    @Test
-    @DisplayName("B-13 the same eventId of another pair committed by another transaction while our INSERT waits on it: 409")
-    void sameEventIdOfAnotherPairCommittedWhileInsertWaits_returns409() throws Exception {
-        HistoryRow otherPair = new HistoryRow(
-                "e1", "BTS-200", "HIGH_CPU", "MAJOR", "RAISED", t0, "Other pair", "ACCEPTED", false);
-        int notificationsBefore = receivedNotifications().size();
-
-        ApiResponse response = postWhileAnotherTransactionHoldsUncommitted(otherPair, AlarmEventJson.valid(t0));
-
-        ProblemAssertions.assertProblem(response, 409);
-        assertThat(db.snapshot())
-                .as("only the other pair's row; (BTS-100, CELL_DOWN) has neither history nor an active alarm")
-                .isEqualTo(new AlarmDb.Snapshot(List.of(otherPair), List.of()));
-        assertNoNotificationSince(notificationsBefore);
-    }
-
-    /**
-     * B-12, B-13: the race of SPEC section 2, step 3, made deterministic. The test plays the "other" transaction
-     * itself instead of hoping that two requests overlap:
-     * <ol>
-     *   <li>a connection of its own, outside the application, inserts {@code row} and does NOT commit;</li>
-     *   <li>the request is sent in the background; the service takes its pair lock (the test took none), its reads
-     *       do not see the uncommitted row, and its {@code INSERT ... ON CONFLICT} meets the uncommitted key in the
-     *       unique index: PostgreSQL makes it wait for the test's transaction;</li>
-     *   <li>the test waits until it SEES that wait in {@code pg_stat_activity}, so the overlap is proven, not assumed;</li>
-     *   <li>the test commits: the waiting INSERT answers 0 rows, and the service decides by the row now stored.</li>
-     * </ol>
-     * What it catches: a plain INSERT, {@code persist} or {@code save()} instead of {@code ON CONFLICT} (a unique
-     * violation, HTTP 500); isolation raised to REPEATABLE READ (the row is committed after the snapshot, PostgreSQL
-     * answers ON CONFLICT with a serialization failure, HTTP 500); a read of the stored row that does not see the
-     * commit.
-     * <p>
-     * In production the same pair cannot get here: the other transaction would hold the pair lock and ours would wait
-     * BEFORE its reads. The test takes no pair lock, so B-12 (same data, same pair) is not a reachable race; it checks
-     * that the "0 rows" path also answers an exact repeat correctly. B-13 (another pair) is the reachable one.
-     * <p>
-     * If anything fails before the commit, the transaction is rolled back in {@code finally}: an open transaction
-     * holding a row would block the TRUNCATE of the next test.
-     */
-    private ApiResponse postWhileAnotherTransactionHoldsUncommitted(HistoryRow row, AlarmEventJson request)
-            throws Exception {
-        try (Connection other = jdbc.getDataSource().getConnection()) {
-            other.setAutoCommit(false);
-            boolean committed = false;
-            try {
-                insertUncommitted(other, row);
-                CompletableFuture<ApiResponse> answer = CompletableFuture.supplyAsync(() -> postEvent(request));
-
-                awaitServiceInsertWaitingOnAnotherTransaction();
-                assertThat(answer).as("the request must still be waiting on the uncommitted row").isNotDone();
-
-                other.commit();
-                committed = true;
-                return answer.get(INSERT_WAIT_LIMIT.toSeconds(), TimeUnit.SECONDS);
-            } finally {
-                if (!committed) {
-                    other.rollback();
-                }
-            }
-        }
-    }
-
-    private static void insertUncommitted(Connection connection, HistoryRow row) throws SQLException {
-        try (PreparedStatement insert = connection.prepareStatement("""
-                INSERT INTO alarm_events
-                	(event_id, element_id, alarm_code, severity, status, event_timestamp, description, acceptance,
-                	 notification_sent)
-                VALUES (?, ?, ?, CAST(? AS alarm_severity), CAST(? AS alarm_status), ?, ?, CAST(? AS event_acceptance), ?)
-                """)) {
-            insert.setString(1, row.eventId());
-            insert.setString(2, row.elementId());
-            insert.setString(3, row.alarmCode());
-            insert.setString(4, row.severity());
-            insert.setString(5, row.status());
-            insert.setLong(6, row.timestamp());
-            insert.setString(7, row.description());
-            insert.setString(8, row.acceptance());
-            insert.setBoolean(9, row.notificationSent());
-            assertThat(insert.executeUpdate()).as("given: the other transaction inserted its row").isEqualTo(1);
-        }
-    }
-
-    /**
-     * Waits until a backend runs an insert into alarm_events and waits for a transaction to end: wait_event_type
-     * {@code Lock}, wait_event {@code transactionid}, which is how PostgreSQL waits on an uncommitted key in a unique
-     * index. That backend can only be the service's: the test's own insert has already finished, its session is idle
-     * in its transaction.
-     * <p>
-     * The statement is matched by "insert into alarm_events" only, case-insensitively, NOT by the rest of the
-     * service's SQL (such as {@code ON CONFLICT}): the precondition must hold for any way of inserting, so that a
-     * broken insert (a plain INSERT, Hibernate's own "insert into" of {@code persist} or {@code save()}) still reaches
-     * the wait and fails on the answer, not here.
-     */
-    private void awaitServiceInsertWaitingOnAnotherTransaction() {
-        await().atMost(INSERT_WAIT_LIMIT).untilAsserted(() -> assertThat(jdbc.queryForObject("""
-                        SELECT count(*) FROM pg_stat_activity
-                        WHERE wait_event_type = 'Lock'
-                          AND wait_event = 'transactionid'
-                          AND query ILIKE '%insert into alarm_events%'
-                        """, Long.class))
-                .as("backends whose insert into alarm_events waits for the test's transaction")
-                .isEqualTo(1L));
     }
 
     /**

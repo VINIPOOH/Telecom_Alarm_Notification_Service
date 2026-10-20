@@ -17,7 +17,7 @@ import static com.se.telecomalarm.api.AlarmEventJson.STATUS;
  * {@link AlarmEventJson} stays the only place that writes the JSON; this record only fills it.
  * A null {@code description} means the field is left out of the JSON.
  */
-record TestEvent(
+public record TestEvent(
         String eventId,
         String elementId,
         String alarmCode,
@@ -32,7 +32,7 @@ record TestEvent(
 
     /**
      * Severity sent with every CLEARED. The field is mandatory in the request, but the total order looks at severity
-     * only between two RAISED events (SPEC section 2, step 3), so its value does not matter for the state.
+     * only between two RAISED events (rule B2), so its value does not matter for the state.
      */
     static final String CLEARED_SEVERITY = "MAJOR";
 
@@ -53,7 +53,7 @@ record TestEvent(
     /**
      * The same event for another pair.
      */
-    TestEvent forPair(String elementId, String alarmCode) {
+    public TestEvent forPair(String elementId, String alarmCode) {
         return new TestEvent(eventId, elementId, alarmCode, severity, status, timestamp, description);
     }
 
@@ -89,7 +89,7 @@ record TestEvent(
     }
 
     /**
-     * This event as an item of GET /api/alarms/history (SPEC section 4): the full event with {@code status},
+     * This event as an item of GET /api/alarms/history: the full event with {@code status},
      * {@code description: null} when it has none. The timestamp is a {@link Long}, as the tests normalise numbers.
      */
     Map<String, Object> asHistoryItem() {

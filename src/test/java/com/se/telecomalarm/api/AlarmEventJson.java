@@ -12,7 +12,7 @@ import java.util.Map;
  * replaced (including with null). Every {@code with}/{@code without} returns a new builder, so a base event can be
  * reused to derive variants.
  */
-final class AlarmEventJson {
+public final class AlarmEventJson {
 
     static final String EVENT_ID = "eventId";
     static final String ELEMENT_ID = "elementId";
@@ -31,7 +31,7 @@ final class AlarmEventJson {
     /**
      * A valid RAISED event for the default pair (BTS-100, CELL_DOWN) with the given timestamp (epoch ms).
      */
-    static AlarmEventJson valid(long timestamp) {
+    public static AlarmEventJson valid(long timestamp) {
         Map<String, Object> fields = new LinkedHashMap<>();
         fields.put(EVENT_ID, "e1");
         fields.put(ELEMENT_ID, "BTS-100");

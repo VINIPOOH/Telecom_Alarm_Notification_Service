@@ -49,8 +49,8 @@ import static org.awaitility.Awaitility.await;
  * <p>
  * <b>The receiver.</b> wiremock-spring-boot starts the server before the context and puts its address into the
  * {@code wiremock.server.httpsBaseUrl} property; {@code src/test/resources/config/application.yaml} builds the
- * notification address from it. The receiver speaks <b>HTTPS only</b> (decision 17.10.2026: notifications go over
- * TLS, and the tests take the same path as production): the plain HTTP port is switched off ({@code port = -1}), the
+ * notification address from it. The receiver speaks <b>HTTPS only</b> (notifications go over TLS, and the tests
+ * take the same path as production): the plain HTTP port is switched off ({@code port = -1}), the
  * HTTPS port is random ({@code httpsPort = 0}), and the server certificate is the self-signed local-development one
  * for {@code localhost} ({@code src/test/resources/tls/}). The application trusts it through the SSL bundle
  * {@code notification-receiver} of the main application.yaml, so the TLS handshake, the certificate check and the
@@ -59,7 +59,7 @@ import static org.awaitility.Awaitility.await;
  * {@link NotificationRecorder}. When several stubs match a request, WireMock uses the most recently added one, so a
  * test changes the receiver simply by adding a stub ({@link #receiverAnswers}, {@link #receiverAnswersFor}).
  * <p>
- * <b>Timing.</b> The read timeout of the notification client is the production one (decision 16.10.2026). Every
+ * <b>Timing.</b> The read timeout of the notification client is the production one. Every
  * WireMock delay and every wait limit is derived from it ({@link #readTimeout()}), never written as a number in a test.
  * <p>
  * <b>Waiting for "nothing more will be sent".</b> {@link NotificationQueue#pendingCount()} counts the notifications
@@ -79,7 +79,7 @@ import static org.awaitility.Awaitility.await;
         keystorePassword = "wiremock-dev-only",
         keyManagerPassword = "wiremock-dev-only"))
 @Import(TestcontainersConfiguration.class)
-abstract class ApiTestBase {
+public abstract class ApiTestBase {
 
     protected static final String JSON = "application/json";
 
@@ -92,7 +92,7 @@ abstract class ApiTestBase {
 
     /**
      * E-04 / E-05: "the 201 comes back fast". The request thread must not wait for the receiver at all, so the answer
-     * is far below the read timeout; 1 s leaves room for a slow test machine (test plan, 16.10.2026).
+     * is far below the read timeout; 1 s leaves room for a slow test machine.
      */
     protected static final Duration FAST_ANSWER = Duration.ofSeconds(1);
 
@@ -125,33 +125,7 @@ abstract class ApiTestBase {
     @Autowired
     private NotificationQueue notificationQueue;
 
-    private static ApiResponse send(HttpRequest request) {
-        try {
-            HttpResponse<String> response = HTTP.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            return new ApiResponse(
-                    response.statusCode(),
-                    response.headers().firstValue("Content-Type"),
-                    response.body());
-        } catch (IOException e) {
-            throw new UncheckedIOException("Request failed: " + request.method() + " " + request.uri(), e);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("Interrupted: " + request.method() + " " + request.uri(), e);
-        }
-    }
-
-    protected static void assertStatus(ApiResponse response, int expectedStatus) {
-        assertThat(response.status()).as("HTTP status of %s", response).isEqualTo(expectedStatus);
-    }
-
-    // ---- HTTP -----------------------------------------------------------------------------------------------
-
-    /**
-     * A 200 that comes after {@code delay}.
-     */
-    protected static ResponseDefinitionBuilder okAfter(Duration delay) {
-        return ok().withFixedDelay(Math.toIntExact(delay.toMillis()));
-    }
+    // ---- before and after each test ---------------------------------------------------------------------------------
 
     @BeforeEach
     void resetState() {
@@ -173,6 +147,23 @@ abstract class ApiTestBase {
     void drainNotificationQueue() {
         receiverAnswers(ok());
         awaitNotificationQueueEmpty(notificationWaitLimit(), "after the test");
+    }
+
+    // ---- HTTP -------------------------------------------------------------------------------------------------------
+
+    private static ApiResponse send(HttpRequest request) {
+        try {
+            HttpResponse<String> response = HTTP.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            return new ApiResponse(
+                    response.statusCode(),
+                    response.headers().firstValue("Content-Type"),
+                    response.body());
+        } catch (IOException e) {
+            throw new UncheckedIOException("Request failed: " + request.method() + " " + request.uri(), e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted: " + request.method() + " " + request.uri(), e);
+        }
     }
 
     protected ApiResponse postEvent(AlarmEventJson event) {
@@ -199,11 +190,15 @@ abstract class ApiTestBase {
                             .build());
     }
 
-    // ---- common checks for an error response (O1-O5) -----------------------------------------------------------
-
     private String baseUrl() {
         return "http://localhost:" + port;
     }
+
+    protected static void assertStatus(ApiResponse response, int expectedStatus) {
+        assertThat(response.status()).as("HTTP status of %s", response).isEqualTo(expectedStatus);
+    }
+
+    // ---- common checks for an error response (O1-O5) ----------------------------------------------------------------
 
     protected ApiResponse postAndExpectProblem(AlarmEventJson event, int expectedStatus) {
         return postRawAndExpectProblem(event.toJson(), JSON, expectedStatus);
@@ -230,10 +225,8 @@ abstract class ApiTestBase {
         return response;
     }
 
-    // ---- the receiver: stubs ---------------------------------------------------------------------------------------
-
     /**
-     * O5 (test-case spec 0.4): waits until the application has nothing left to send, then checks that the receiver
+     * O5: waits until the application has nothing left to send, then checks that the receiver
      * got no request since the count was taken. The caller takes the count after {@link #awaitNotificationQueueEmpty()},
      * so earlier notifications are already in it.
      */
@@ -242,6 +235,15 @@ abstract class ApiTestBase {
         assertThat(receivedNotifications())
                 .as("O5: no notification for this request; the receiver had %d before it", notificationsBefore)
                 .hasSize(notificationsBefore);
+    }
+
+    // ---- the receiver: stubs ----------------------------------------------------------------------------------------
+
+    /**
+     * A 200 that comes after {@code delay}.
+     */
+    protected static ResponseDefinitionBuilder okAfter(Duration delay) {
+        return ok().withFixedDelay(Math.toIntExact(delay.toMillis()));
     }
 
     /**
@@ -260,7 +262,7 @@ abstract class ApiTestBase {
                                  .willReturn(response));
     }
 
-    // ---- timing, all derived from the configured read timeout ------------------------------------------------------
+    // ---- timing, all derived from the configured read timeout -------------------------------------------------------
 
     /**
      * {@code spring.http.serviceclient.notifications.read-timeout}, bound with Spring Boot's own rules ("5s").
@@ -292,7 +294,7 @@ abstract class ApiTestBase {
         return readTimeout().multipliedBy(2);
     }
 
-    // ---- the receiver: what arrived ----------------------------------------------------------------------------------
+    // ---- the receiver: what arrived ---------------------------------------------------------------------------------
 
     /**
      * The notifications the receiver got in this test (POST to the endpoint), in the order of arrival.
@@ -347,7 +349,7 @@ abstract class ApiTestBase {
         return result.get();
     }
 
-    // ---- the application's queue -------------------------------------------------------------------------------------
+    // ---- the application's queue ------------------------------------------------------------------------------------
 
     protected void awaitNotificationQueueEmpty() {
         awaitNotificationQueueEmpty(notificationWaitLimit(), "before checking the notifications");
@@ -368,7 +370,7 @@ abstract class ApiTestBase {
                         .isZero());
     }
 
-    // ---- notification_sent -------------------------------------------------------------------------------------------
+    // ---- notification_sent ------------------------------------------------------------------------------------------
 
     /**
      * {@code notification_sent = true} is set by the sender after a 2xx; waits for it.
