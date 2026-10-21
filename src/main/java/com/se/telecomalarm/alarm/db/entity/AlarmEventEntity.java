@@ -7,7 +7,6 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.Getter;
-import lombok.Setter;
 
 import com.se.telecomalarm.alarm.db.repository.AlarmEventRepository;
 import com.se.telecomalarm.alarm.domain.AlarmEventAcceptance;
@@ -56,7 +55,6 @@ public class AlarmEventEntity {
     @Column(name = "description")
     private String description;
 
-    @Setter
     @Getter
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)

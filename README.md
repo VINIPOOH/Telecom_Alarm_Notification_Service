@@ -226,7 +226,8 @@ Why not plain JPA: `save()` with an assigned id is a `merge`, which reads the ro
 transaction, so the stored row can no longer be read to tell a repeat from a conflict. "Check first, then insert" is a
 race between the check and the insert. `ON CONFLICT DO NOTHING` has none of these problems.
 
-This and the advisory lock (below) are the only two native SQL statements; everything else is Spring Data JPA.
+Native SQL is used only where PostgreSQL offers what JPQL lacks: this insert, the resurrection update (decision 5)
+and the advisory lock (decision 6.1). Everything else is Spring Data JPA.
 
 ### 4. One implementation of the event order (B1, B2)
 
@@ -241,7 +242,9 @@ so it could differ from Java's; a second copy of the rule in SQL would also have
 ### 5. Rejected CLEARED events live in the history table (B4, B5, B6)
 
 A rejected CLEARED is a normal history row with `acceptance = REJECTED`; no separate table. Resurrection is then one
-`UPDATE` of `acceptance` in the same transaction as the RAISED that causes it.
+native `UPDATE ... RETURNING` in the same transaction as the RAISED that causes it: it accepts the rejected CLEARED
+events and returns them for the notifications in one statement, where JPA would need a select and then one update
+per row. JPQL has no `RETURNING`.
 
 The 409 for a rejected CLEARED is raised **after** the commit. Inside the transaction the exception would roll back
 the REJECTED row, and then a later RAISED would have nothing to resurrect.

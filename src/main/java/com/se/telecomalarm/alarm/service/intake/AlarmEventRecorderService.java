@@ -80,10 +80,9 @@ class AlarmEventRecorderService {
     }
 
     private List<AlarmEvent> resurrectClearedAlarmsAfter(AlarmEvent raised) {
-        List<AlarmEventEntity> rejected = alarmEventRepository.findRejectedClearedAlarmsAfterGivenAlarm(
+        List<AlarmEventEntity> resurrected = alarmEventRepository.acceptRejectedClearedAlarmsAfter(
                 raised.elementId(), raised.alarmCode(), raised.timestamp());
-        rejected.forEach(row -> row.setAcceptance(AlarmEventAcceptance.ACCEPTED));
-        return rejected.stream()
+        return resurrected.stream()
                 .map(alarmEventEntityToDataMapper::toEvent)
                 .sorted(alarmEventComparator)
                 .toList();

@@ -2,6 +2,8 @@ package com.se.telecomalarm.alarm.db.repository;
 
 import java.util.List;
 import com.se.telecomalarm.alarm.db.entity.AlarmEventEntity;
+import com.se.telecomalarm.alarm.domain.AlarmEventAcceptance;
+import com.se.telecomalarm.alarm.domain.AlarmStatus;
 import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -59,29 +61,34 @@ public interface AlarmEventRepository extends JpaRepository<AlarmEventEntity, St
             @Param("elementId") String elementId,
             @Param("alarmCode") String alarmCode);
 
-    @Query("""
-            select case when count(h) > 0 then true else false end
-            from AlarmEventEntity h
-            where h.elementId = :elementId
-              and h.alarmCode = :alarmCode
-              and h.status = 'RAISED'
-              and h.acceptance = 'ACCEPTED'
-              and h.eventTimestamp < :clearedTimestamp
-            """)
-    boolean hasAcceptedRaisedAlarmBefore(
-            @Param("elementId") String elementId,
-            @Param("alarmCode") String alarmCode,
-            @Param("clearedTimestamp") long clearedTimestamp);
+    default boolean hasAcceptedRaisedAlarmBefore(String elementId, String alarmCode, long clearedTimestamp) {
+        return existsByElementIdAndAlarmCodeAndStatusAndAcceptanceAndEventTimestampLessThan(
+                elementId, alarmCode, AlarmStatus.RAISED, AlarmEventAcceptance.ACCEPTED, clearedTimestamp);
+    }
 
-    @Query("""
-            select h from AlarmEventEntity h
-            where h.elementId = :elementId
-              and h.alarmCode = :alarmCode
-              and h.status = 'CLEARED'
-              and h.acceptance = 'REJECTED'
-              and h.eventTimestamp > :raisedTimestamp
-            """)
-    List<AlarmEventEntity> findRejectedClearedAlarmsAfterGivenAlarm(
+    boolean existsByElementIdAndAlarmCodeAndStatusAndAcceptanceAndEventTimestampLessThan(
+            String elementId,
+            String alarmCode,
+            AlarmStatus status,
+            AlarmEventAcceptance acceptance,
+            long eventTimestamp);
+
+    /**
+     * Resurrection in one statement: accepts the rejected CLEARED events after the given RAISED and returns them, for
+     * the notifications. Native, because RETURNING is PostgreSQL, not JPQL. No @Modifying on purpose: with it Spring
+     * Data runs executeUpdate and returns only the row count.
+     */
+    @Query(value = """
+            UPDATE alarm_events
+            SET acceptance = 'ACCEPTED'
+            WHERE element_id = :elementId
+              AND alarm_code = :alarmCode
+              AND status = 'CLEARED'
+              AND acceptance = 'REJECTED'
+              AND event_timestamp > :raisedTimestamp
+            RETURNING *
+            """, nativeQuery = true)
+    List<AlarmEventEntity> acceptRejectedClearedAlarmsAfter(
             @Param("elementId") String elementId,
             @Param("alarmCode") String alarmCode,
             @Param("raisedTimestamp") long raisedTimestamp);

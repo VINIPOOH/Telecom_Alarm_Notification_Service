@@ -1,6 +1,8 @@
 package com.se.telecomalarm.alarm.service.notification;
 
 import com.se.telecomalarm.alarm.db.repository.AlarmEventRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
@@ -15,6 +17,8 @@ import org.springframework.stereotype.Service;
 @Service
 class NotificationSenderService {
 
+    private static final Logger log = LoggerFactory.getLogger(NotificationSenderService.class);
+
     private final NotificationClient notificationClient;
     private final AlarmEventRepository alarmEventRepository;
 
@@ -28,6 +32,10 @@ class NotificationSenderService {
         if (!answer.getStatusCode().is2xxSuccessful()) {
             throw new IllegalStateException("the receiver answered " + answer.getStatusCode() + ", not 2xx");
         }
-        alarmEventRepository.markNotificationSent(notification.eventId());
+        // Not 1 only if the event row is gone: it is committed before the notification is queued and never deleted.
+        if (alarmEventRepository.markNotificationSent(notification.eventId()) != 1) {
+            log.warn("The notification of event {} (element {}) was sent, but notification_sent was not set: "
+                     + "the event row was not found", notification.eventId(), notification.elementId());
+        }
     }
 }
